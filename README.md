@@ -34,6 +34,15 @@ The browser communicates with the backend over HTTP. The backend owns applicatio
 
 ### 1. Start the API
 
+Create a local environment file from the template and add your Gemini key there (never commit the real `.env` file):
+
+```bash
+cp .env.example .env
+# Edit .env and set GEMINI_API_KEY=your_actual_key
+```
+
+The backend automatically loads the repository-root `.env` file. Explicit shell / Render environment variables take precedence. Restart FastAPI after changing the key.
+
 From the repository root:
 
 ```bash
