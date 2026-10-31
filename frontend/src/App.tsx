@@ -103,6 +103,7 @@ export default function App() {
   function handleDocumentAnalyzed(result: DocumentAnalysis, fromRepository = false) {
     setLatestAnalysis(result);
     if (fromRepository || result.persistence?.duplicate) return;
+    void api.changes().then((response) => setChanges(response.items)).catch(() => undefined);
     setPublications((current) => [result.publication, ...current.filter((item) => item.id !== result.publication.id)]);
     setOverview((current) => {
       if (!current) return current;

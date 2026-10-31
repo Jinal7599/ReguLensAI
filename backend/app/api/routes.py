@@ -12,7 +12,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.data.demo_data import CHANGES, PUBLICATIONS, SOURCES
 from app.core.config import gemini_configuration
-from app.db.models import Publication, RegulatoryAuthority
+from app.db.models import ChangeFinding, DocumentComparison, DocumentVersion, Publication, RegulatoryAuthority
 from app.db.session import get_db, get_optional_db, private_document_access_enabled, resolve_database_url
 from app.repositories.document_repository import (
     duplicate_persistence_result,
@@ -22,6 +22,12 @@ from app.repositories.document_repository import (
     persist_analysis,
     publication_to_dict,
 )
+from app.repositories.document_intelligence_repository import persist_document_intelligence
+from app.services.repository_comparison import (
+    get_comparison_detail,
+    get_document_comparison_summary,
+    run_repository_comparison,
+)
 from app.services.document_ingestion import (
     MAX_UPLOAD_BYTES,
     DocumentIngestionError,
@@ -29,6 +35,31 @@ from app.services.document_ingestion import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["Regulatory intelligence"])
+
+def _comparison_for_duplicate(session: Session, document_version_id: str) -> dict[str, Any]:
+    """Reuse stored comparisons, or retry when the document was uploaded before history existed."""
+    summary = get_document_comparison_summary(session, document_version_id)
+    if summary.get("comparisons"):
+        return summary
+    try:
+        return run_repository_comparison(session, document_version_id)
+    except Exception:
+        session.rollback()
+        import logging
+        logging.getLogger(__name__).exception(
+            "Repository comparison retry failed for document_version_id=%s",
+            document_version_id,
+        )
+        return {
+            "status": "failed",
+            "documents_considered": summary.get("documents_considered", 0),
+            "documents_matched": 0,
+            "finding_count": 0,
+            "classification_counts": {},
+            "comparisons": [],
+            "message": "The document was already saved, but repository comparison could not be completed. Review the server logs.",
+        }
+
 
 
 def _database_publications(session: Session | None) -> list[dict[str, Any]]:
@@ -144,12 +175,54 @@ def document_detail(document_version_id: str, session: Session = Depends(get_db)
     result = get_document_detail(session, document_version_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Document version was not found.")
+    result["comparison"] = get_document_comparison_summary(session, document_version_id)
+    return result
+
+
+@router.get("/documents/{document_version_id}/comparisons")
+def document_comparisons(document_version_id: str, session: Session = Depends(get_db)) -> dict:
+    if session.get(DocumentVersion, document_version_id) is None:
+        raise HTTPException(status_code=404, detail="Document version was not found.")
+    return get_document_comparison_summary(session, document_version_id)
+
+
+@router.get("/comparisons/{comparison_id}")
+def comparison_detail(comparison_id: str, session: Session = Depends(get_db)) -> dict:
+    result = get_comparison_detail(session, comparison_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Document comparison was not found.")
     return result
 
 
 @router.get("/changes")
-def changes() -> dict:
-    return {"items": CHANGES, "total": len(CHANGES)}
+def changes(session: Session | None = Depends(get_optional_db)) -> dict:
+    if session is None:
+        return {"items": CHANGES, "total": len(CHANGES)}
+    rows = session.execute(
+        select(ChangeFinding, DocumentComparison, DocumentVersion, Publication)
+        .join(DocumentComparison, DocumentComparison.id == ChangeFinding.comparison_id)
+        .join(DocumentVersion, DocumentVersion.id == DocumentComparison.new_document_version_id)
+        .join(Publication, Publication.id == DocumentVersion.publication_id)
+        .order_by(ChangeFinding.created_at.desc())
+    ).all()
+    stored = []
+    for finding, comparison, version, publication in rows:
+        stored.append({
+            "id": finding.id,
+            "publication": publication.title,
+            "country": publication.jurisdiction,
+            "classification": finding.classification,
+            "priority": "High" if finding.classification in {"New obligation", "Withdrawn / superseded", "Deadline extended / shortened"} else "Medium",
+            "previous": finding.previous_text or "No historical clause identified.",
+            "updated": finding.updated_text or "No updated clause identified.",
+            "impact": finding.why_it_matters or finding.change_summary,
+            "actions": finding.recommended_actions or ["Review the source clauses and confirm business impact"],
+            "source": f"Previous: {finding.previous_source_reference or 'Not identified'}; Updated: {finding.updated_source_reference or 'Not identified'}",
+            "comparison_id": comparison.id,
+            "evidence_verified": finding.evidence_verified,
+            "needs_review": finding.needs_review,
+        })
+    return {"items": stored + CHANGES, "total": len(stored) + len(CHANGES)}
 
 
 @router.get("/sources")
@@ -178,6 +251,7 @@ async def analyze_uploaded_document(
         response = deepcopy(existing.extraction_result or {})
         response["persistence"] = duplicate_persistence_result(existing)
         response["persistence"]["original_file_stored"] = bool(existing.storage_uri)
+        response["comparison"] = _comparison_for_duplicate(session, existing.id)
         return response
 
     try:
@@ -190,8 +264,32 @@ async def analyze_uploaded_document(
             source_sections=persistence_context.get("source_sections") or [],
             mime_type=file.content_type,
         )
+        intelligence_counts = persist_document_intelligence(
+            session,
+            persistence["document_version_id"],
+            result["extraction"],
+        )
+        persistence.update(intelligence_counts)
         persistence["original_file_stored"] = False
         result["persistence"] = persistence
+        try:
+            result["comparison"] = run_repository_comparison(session, persistence["document_version_id"])
+        except Exception:
+            session.rollback()
+            import logging
+            logging.getLogger(__name__).exception(
+                "Repository comparison failed for document_version_id=%s",
+                persistence["document_version_id"],
+            )
+            result["comparison"] = {
+                "status": "failed",
+                "documents_considered": 0,
+                "documents_matched": 0,
+                "finding_count": 0,
+                "classification_counts": {},
+                "comparisons": [],
+                "message": "Document intelligence was saved, but historical comparison failed. Review the server logs before retrying.",
+            }
         return result
     except DocumentIngestionError as exc:
         session.rollback()
@@ -203,6 +301,7 @@ async def analyze_uploaded_document(
             response = deepcopy(existing.extraction_result or {})
             response["persistence"] = duplicate_persistence_result(existing)
             response["persistence"]["original_file_stored"] = bool(existing.storage_uri)
+            response["comparison"] = _comparison_for_duplicate(session, existing.id)
             return response
         raise HTTPException(status_code=409, detail="A document with this content already exists; retry the request.")
     except Exception as exc:

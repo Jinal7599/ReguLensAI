@@ -109,35 +109,46 @@ def test_local_env_file_is_loaded_without_overriding_process_environment(tmp_pat
 
 
 def test_explicit_gemini_environment_key_selects_gemini_path(monkeypatch):
-    import app.services.document_ingestion as ingestion
+    import app.services.document_intelligence as intelligence
 
     monkeypatch.setenv("GEMINI_API_KEY", "unit-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "test-model")
     monkeypatch.setattr(
-        ingestion,
-        "_run_gemini",
-        lambda segments, filename: {
-            "model": "test-model",
-            "payload": {
-                "document_metadata": {
-                    "title": "Synthetic AI Circular",
-                    "authority": "Test Regulator",
-                    "jurisdiction": "India",
-                    "publication_date": "Not identified",
-                    "effective_date": "Not identified",
-                    "reference_number": "Not identified",
-                    "document_type": "Circular",
-                    "business_area": "AI governance",
-                },
-                "summary": "Test Gemini summary.",
-                "obligations": [{
-                    "requirement": "A regulated entity shall maintain a model inventory.",
-                    "classification": "Mandatory requirement",
-                    "applies_to": ["Banking"],
-                    "deadline": "Not identified",
-                    "source_reference": "TXT line 2",
-                    "source_excerpt": "A regulated entity shall maintain a model inventory.",
-                }],
+        intelligence,
+        "_run_gemini_chunk",
+        lambda segments, filename, model: {
+            "document_metadata": {
+                "title": "Synthetic AI Circular",
+                "authority": "Test Regulator",
+                "jurisdiction": "India",
+                "publication_date": "Not identified",
+                "effective_date": "Not identified",
+                "reference_number": "Not identified",
+                "document_type": "Circular",
+                "business_area": "AI governance",
             },
+            "summary": "Test Gemini summary.",
+            "clauses": [{
+                "clause_number": "2.1",
+                "heading": "Model inventory",
+                "clause_type": "obligation",
+                "clause_text": "A company should keep a list of AI tools.",
+                "source_reference": "TXT line 2",
+                "source_excerpt": "A regulated entity shall maintain a model inventory.",
+            }],
+            "obligations": [{
+                "requirement": "A regulated entity shall maintain a model inventory.",
+                "classification": "Mandatory requirement",
+                "obligation_type": "requirement",
+                "applies_to": ["Banking"],
+                "affected_entities": ["Regulated entities"],
+                "departments": ["Risk"],
+                "deadline": "Not identified",
+                "clause_number": "2.1",
+                "source_reference": "TXT line 2",
+                "source_excerpt": "A regulated entity shall maintain a model inventory.",
+            }],
+            "references": [],
         },
     )
     response = client.post(
@@ -149,9 +160,14 @@ def test_explicit_gemini_environment_key_selects_gemini_path(monkeypatch):
         )},
     )
     assert response.status_code == 200
-    assert response.json()["extraction"]["method"] == "Gemini structured extraction"
-    assert response.json()["extraction"]["gemini_status"] == "used"
-    assert response.json()["extraction"]["model"] == "test-model"
+    extraction = response.json()["extraction"]
+    assert extraction["method"] == "Gemini structured document intelligence"
+    assert extraction["gemini_status"] == "used"
+    assert extraction["model"] == "test-model"
+    assert extraction["clause_count"] == 1
+    assert extraction["clauses"][0]["text"] == "A regulated entity shall maintain a model inventory."
+    assert extraction["clauses"][0]["evidence_verified"] is True
+    assert extraction["obligations"][0]["evidence_verified"] is True
 
 
 def test_gemini_diagnostics_does_not_expose_secret(monkeypatch):

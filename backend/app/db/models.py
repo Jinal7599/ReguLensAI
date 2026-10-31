@@ -117,9 +117,14 @@ class Obligation(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     document_version_id: Mapped[str] = mapped_column(ForeignKey("document_versions.id", ondelete="CASCADE"), nullable=False)
     section_id: Mapped[str | None] = mapped_column(ForeignKey("document_sections.id", ondelete="SET NULL"))
+    clause_id: Mapped[str | None] = mapped_column(String(36))
+    clause_number: Mapped[str | None] = mapped_column(String(120))
     requirement: Mapped[str] = mapped_column(Text, nullable=False)
     classification: Mapped[str] = mapped_column(String(120), nullable=False)
+    obligation_type: Mapped[str | None] = mapped_column(String(80))
     applies_to: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    affected_entities: Mapped[list | None] = mapped_column(JSON, default=list)
+    departments: Mapped[list | None] = mapped_column(JSON, default=list)
     deadline: Mapped[str | None] = mapped_column(String(240))
     source_reference: Mapped[str] = mapped_column(String(240), nullable=False)
     source_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
@@ -157,3 +162,88 @@ class AnalysisJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RegulatoryClause(Base):
+    __tablename__ = "regulatory_clauses"
+    __table_args__ = (
+        UniqueConstraint("document_version_id", "ordinal", name="uq_regulatory_clause_ordinal"),
+        Index("ix_regulatory_clauses_document", "document_version_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    document_version_id: Mapped[str] = mapped_column(ForeignKey("document_versions.id", ondelete="CASCADE"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    clause_number: Mapped[str | None] = mapped_column(String(120))
+    heading: Mapped[str | None] = mapped_column(String(500))
+    clause_type: Mapped[str] = mapped_column(String(80), nullable=False, default="regulatory_text")
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(240), nullable=False)
+    evidence_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class RegulatoryReference(Base):
+    __tablename__ = "regulatory_references"
+    __table_args__ = (Index("ix_regulatory_references_document", "source_document_version_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_document_version_id: Mapped[str] = mapped_column(ForeignKey("document_versions.id", ondelete="CASCADE"), nullable=False)
+    referenced_title: Mapped[str | None] = mapped_column(String(500))
+    reference_number: Mapped[str | None] = mapped_column(String(240))
+    relationship_type: Mapped[str] = mapped_column(String(80), nullable=False, default="references")
+    source_reference: Mapped[str] = mapped_column(String(240), nullable=False)
+    source_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class DocumentComparison(Base):
+    __tablename__ = "document_comparisons"
+    __table_args__ = (
+        UniqueConstraint("new_document_version_id", "historical_document_version_id", name="uq_document_comparison_pair"),
+        Index("ix_document_comparisons_new_document", "new_document_version_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    new_document_version_id: Mapped[str] = mapped_column(ForeignKey("document_versions.id", ondelete="CASCADE"), nullable=False)
+    historical_document_version_id: Mapped[str] = mapped_column(ForeignKey("document_versions.id", ondelete="CASCADE"), nullable=False)
+    relationship_type: Mapped[str] = mapped_column(String(80), nullable=False, default="related_to")
+    match_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    matching_method: Mapped[str] = mapped_column(String(120), nullable=False)
+    match_evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    analysis_method: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="completed")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ChangeFinding(Base):
+    __tablename__ = "change_findings"
+    __table_args__ = (
+        Index("ix_change_findings_comparison", "comparison_id"),
+        Index("ix_change_findings_classification", "classification"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    comparison_id: Mapped[str] = mapped_column(ForeignKey("document_comparisons.id", ondelete="CASCADE"), nullable=False)
+    previous_clause_id: Mapped[str | None] = mapped_column(ForeignKey("regulatory_clauses.id", ondelete="SET NULL"))
+    updated_clause_id: Mapped[str | None] = mapped_column(ForeignKey("regulatory_clauses.id", ondelete="SET NULL"))
+    classification: Mapped[str] = mapped_column(String(80), nullable=False)
+    previous_clause_number: Mapped[str | None] = mapped_column(String(120))
+    updated_clause_number: Mapped[str | None] = mapped_column(String(120))
+    previous_text: Mapped[str | None] = mapped_column(Text)
+    updated_text: Mapped[str | None] = mapped_column(Text)
+    previous_source_reference: Mapped[str | None] = mapped_column(String(240))
+    updated_source_reference: Mapped[str | None] = mapped_column(String(240))
+    change_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    why_it_matters: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    affected_business_areas: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    affected_departments: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    recommended_actions: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    previous_deadline: Mapped[str | None] = mapped_column(String(240))
+    updated_deadline: Mapped[str | None] = mapped_column(String(240))
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    evidence_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

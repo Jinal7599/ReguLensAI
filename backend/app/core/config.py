@@ -21,6 +21,15 @@ def load_local_environment(
     """
     global _LOADED_GEMINI_KEY_SOURCE
 
+    # Avoid loading a developer's real .env credentials into tests. Tests that
+    # explicitly exercise dotenv loading pass isolated temporary paths.
+    if (
+        os.getenv("APP_ENV", "").strip().lower() == "test"
+        and project_root == PROJECT_ROOT
+        and backend_root == BACKEND_ROOT
+    ):
+        return []
+
     loaded_files: list[str] = []
     for source_name, env_file in (
         ("repository .env", project_root / ".env"),
