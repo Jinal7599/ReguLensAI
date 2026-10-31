@@ -20,37 +20,37 @@ MAX_ANALYSIS_CHARS = 45_000
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 
 OBLIGATION_SCHEMA: dict[str, Any] = {
-    "type": "OBJECT",
+    "type": "object",
     "properties": {
         "document_metadata": {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
-                "title": {"type": "STRING"},
-                "authority": {"type": "STRING"},
-                "jurisdiction": {"type": "STRING"},
-                "publication_date": {"type": "STRING"},
-                "effective_date": {"type": "STRING"},
-                "reference_number": {"type": "STRING"},
-                "document_type": {"type": "STRING"},
-                "business_area": {"type": "STRING"},
+                "title": {"type": "string"},
+                "authority": {"type": "string"},
+                "jurisdiction": {"type": "string"},
+                "publication_date": {"type": "string"},
+                "effective_date": {"type": "string"},
+                "reference_number": {"type": "string"},
+                "document_type": {"type": "string"},
+                "business_area": {"type": "string"},
             },
             "required": [
                 "title", "authority", "jurisdiction", "publication_date",
                 "effective_date", "reference_number", "document_type", "business_area",
             ],
         },
-        "summary": {"type": "STRING"},
+        "summary": {"type": "string"},
         "obligations": {
-            "type": "ARRAY",
+            "type": "array",
             "items": {
-                "type": "OBJECT",
+                "type": "object",
                 "properties": {
-                    "requirement": {"type": "STRING"},
-                    "classification": {"type": "STRING"},
-                    "applies_to": {"type": "ARRAY", "items": {"type": "STRING"}},
-                    "deadline": {"type": "STRING"},
-                    "source_reference": {"type": "STRING"},
-                    "source_excerpt": {"type": "STRING"},
+                    "requirement": {"type": "string"},
+                    "classification": {"type": "string"},
+                    "applies_to": {"type": "array", "items": {"type": "string"}},
+                    "deadline": {"type": "string"},
+                    "source_reference": {"type": "string"},
+                    "source_excerpt": {"type": "string"},
                 },
                 "required": [
                     "requirement", "classification", "applies_to", "deadline",
