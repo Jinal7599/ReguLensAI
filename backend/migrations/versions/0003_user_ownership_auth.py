@@ -1,13 +1,13 @@
 """Add Google users and per-user document ownership.
 
 Revision ID: 0003_user_ownership_auth
-Revises: 0002_document_intelligence_comparison
+Revises: 0002_doc_intel_comparison
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "0003_user_ownership_auth"
-down_revision = "0002_document_intelligence_comparison"
+down_revision = "0002_doc_intel_comparison"
 branch_labels = None
 depends_on = None
 
