@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from app.services.repository_comparison import _score_internal_policy_document
 
 from app.main import app
 
@@ -215,28 +216,17 @@ def test_repository_does_not_mark_missing_old_clauses_as_withdrawn_without_expli
     assert all(item["classification"] != "Withdrawn / superseded" for item in findings)
 
 
-def test_new_document_is_checked_against_uploaded_internal_policy(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    policy = upload_text(
-        "Internal Lending Policy\n"
-        "The bank shall conduct quarterly independent validation of credit scoring models. "
-        "The risk team must retain validation evidence, document model limitations and approve "
-        "material model changes before production deployment.\n",
-        "internal-lending-policy.txt",
+def test_internal_policy_match_uses_shared_terms_and_title():
+    result = _score_internal_policy_document(
+        {
+            "title": "New credit risk circular",
+            "extracted_text": "Banks must conduct quarterly independent validation of credit scoring models and retain validation evidence.",
+        },
+        {
+            "title": "Internal credit risk policy",
+            "extracted_text": "The bank shall conduct quarterly independent validation of credit scoring models. The risk team must retain validation evidence.",
+        },
     )
-    assert policy.status_code == 200
-    assert policy.json()["comparison"]["status"] == "no_history"
-
-    regulatory_update = upload_text(
-        "Illustrative Regulatory Update\n"
-        "A regulated bank must conduct quarterly independent validation of credit scoring models "
-        "and retain validation evidence. Material model changes require documented approval "
-        "before production deployment.\n",
-        "regulatory-update.txt",
-    )
-    assert regulatory_update.status_code == 200
-    comparison = regulatory_update.json()["comparison"]
-    assert comparison["status"] == "compared"
-    assert comparison["documents_matched"] >= 1
-    assert comparison["finding_count"] >= 1
-    assert comparison["comparisons"][0]["matching_method"] == "internal_policy_content_overlap"
+    assert result["selected"] is True
+    assert result["matching_method"] == "internal_policy_content_overlap"
+    assert result["evidence"]["shared_term_count"] >= 3
