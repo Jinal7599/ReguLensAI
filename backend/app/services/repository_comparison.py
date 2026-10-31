@@ -500,7 +500,20 @@ def _serialize_comparison(session: Session, comparison: DocumentComparison) -> d
     }
 
 
-def get_document_comparison_summary(session: Session, document_version_id: str) -> dict[str, Any]:
+def get_document_comparison_summary(
+    session: Session, document_version_id: str, owner_user_id: str | None = None
+) -> dict[str, Any]:
+    owned_version = session.scalar(
+        select(DocumentVersion).where(
+            DocumentVersion.id == document_version_id,
+            DocumentVersion.owner_user_id == owner_user_id,
+        )
+    )
+    if owned_version is None:
+        return {
+            "status": "not_found", "documents_considered": 0, "documents_matched": 0,
+            "finding_count": 0, "classification_counts": {}, "comparisons": [],
+        }
     comparisons = session.scalars(
         select(DocumentComparison)
         .where(DocumentComparison.new_document_version_id == document_version_id)
@@ -509,7 +522,10 @@ def get_document_comparison_summary(session: Session, document_version_id: str) 
     comparison_items = [_serialize_comparison(session, item) for item in comparisons]
     if not comparisons:
         historical_count = int(session.scalar(
-            select(func.count(DocumentVersion.id)).where(DocumentVersion.id != document_version_id)
+            select(func.count(DocumentVersion.id)).where(
+                DocumentVersion.id != document_version_id,
+                DocumentVersion.owner_user_id == owner_user_id,
+            )
         ) or 0)
         return {
             "status": "no_history" if historical_count == 0 else "no_relevant_match",
@@ -547,8 +563,15 @@ def get_comparison_detail(session: Session, comparison_id: str) -> dict[str, Any
     return result
 
 
-def run_repository_comparison(session: Session, new_document_version_id: str) -> dict[str, Any]:
-    new_version = session.get(DocumentVersion, new_document_version_id)
+def run_repository_comparison(
+    session: Session, new_document_version_id: str, owner_user_id: str | None = None
+) -> dict[str, Any]:
+    new_version = session.scalar(
+        select(DocumentVersion).where(
+            DocumentVersion.id == new_document_version_id,
+            DocumentVersion.owner_user_id == owner_user_id,
+        )
+    )
     if new_version is None:
         return {"status": "not_found", "documents_considered": 0, "documents_matched": 0, "comparisons": []}
     new_publication = session.get(Publication, new_version.publication_id)
@@ -561,7 +584,10 @@ def run_repository_comparison(session: Session, new_document_version_id: str) ->
         select(DocumentVersion, Publication, RegulatoryAuthority)
         .join(Publication, Publication.id == DocumentVersion.publication_id)
         .outerjoin(RegulatoryAuthority, RegulatoryAuthority.id == Publication.authority_id)
-        .where(DocumentVersion.id != new_document_version_id)
+        .where(
+            DocumentVersion.id != new_document_version_id,
+            DocumentVersion.owner_user_id == owner_user_id,
+        )
         .order_by(DocumentVersion.created_at.desc())
     ).all()
 

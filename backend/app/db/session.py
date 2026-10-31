@@ -5,7 +5,6 @@ from pathlib import Path
 from threading import Lock
 from typing import Generator
 
-from fastapi import HTTPException
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -83,19 +82,11 @@ def get_session_factory() -> sessionmaker[Session] | None:
     return _session_factory
 
 
-def private_document_access_enabled() -> bool:
-    """Private document APIs remain local-only until authentication is implemented."""
-    return os.getenv("APP_ENV", "development").strip().lower() != "production"
-
-
 def get_db() -> Generator[Session, None, None]:
-    if not private_document_access_enabled():
-        raise HTTPException(
-            status_code=503,
-            detail="Private document APIs are disabled on this public deployment until authentication and access controls are enabled.",
-        )
+    """Provide a database session; route-level dependencies enforce user access."""
     factory = get_session_factory()
     if factory is None:
+        from fastapi import HTTPException
         raise HTTPException(
             status_code=503,
             detail="Persistent storage is not configured. Set DATABASE_URL to a PostgreSQL connection string.",
@@ -105,9 +96,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def get_optional_db() -> Generator[Session | None, None, None]:
-    if not private_document_access_enabled():
-        yield None
-        return
+    """Provide storage when configured without making public demo endpoints depend on it."""
     factory = get_session_factory()
     if factory is None:
         yield None

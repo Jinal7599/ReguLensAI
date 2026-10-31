@@ -229,3 +229,38 @@ td small { color: #75849a; font-size: 12.5px; }
   .metric-grid { gap: 10px; }
   .metric-card { padding: 14px; }
 }
+
+
+/* Google authentication and private workspace */
+.avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.user-signout { margin-left: auto; }
+.signed-in-label {
+  max-width: 260px; overflow: hidden; color: var(--muted, #65748b);
+  font-size: 12px; text-overflow: ellipsis; white-space: nowrap;
+}
+.button.compact { min-height: 34px; padding: 7px 12px; font-size: 12px; }
+.auth-gate {
+  display: flex; min-height: 340px; align-items: center; justify-content: center;
+  gap: 14px; padding: 42px 24px; text-align: center;
+}
+.auth-gate-icon {
+  display: grid; width: 58px; height: 58px; place-items: center;
+  border-radius: 18px; background: #edf3ff; color: #315da8;
+}
+.auth-gate h2 { margin: 0; color: var(--ink, #17243a); font-size: 23px; }
+.auth-gate p { max-width: 520px; margin: 0; color: var(--muted, #65748b); line-height: 1.65; }
+.auth-gate > small { max-width: 520px; color: var(--muted, #65748b); line-height: 1.5; }
+.google-signin-wrap {
+  position: relative; display: flex; min-height: 44px; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.google-signin-wrap iframe { max-width: 100%; }
+.auth-inline-error, .auth-error-banner { margin: 8px 0 0; color: #a33b36; font-size: 12px; }
+.auth-error-banner {
+  max-width: 620px; padding: 10px 13px; border: 1px solid #f0c4c0;
+  border-radius: 9px; background: #fff7f6;
+}
+@media (max-width: 760px) {
+  .signed-in-label { display: none; }
+  .auth-gate { min-height: 280px; padding: 28px 16px; }
+}

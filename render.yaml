@@ -20,6 +20,10 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
 
   - type: web
     name: regulens-ai-frontend
@@ -29,4 +33,6 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
         sync: false

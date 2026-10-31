@@ -22,6 +22,22 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("google_sub", name="uq_users_google_sub"),
+        Index("ix_users_email", "email"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    google_sub: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    picture_url: Mapped[str | None] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class RegulatoryAuthority(Base):
     __tablename__ = "regulatory_authorities"
     __table_args__ = (UniqueConstraint("name", "jurisdiction", name="uq_authority_name_jurisdiction"),)
@@ -75,11 +91,13 @@ class Publication(Base):
 class DocumentVersion(Base):
     __tablename__ = "document_versions"
     __table_args__ = (
-        UniqueConstraint("sha256", name="uq_document_versions_sha256"),
+        UniqueConstraint("owner_user_id", "sha256", name="uq_document_versions_owner_sha256"),
         Index("ix_document_versions_publication", "publication_id"),
+        Index("ix_document_versions_owner", "owner_user_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     publication_id: Mapped[str] = mapped_column(ForeignKey("publications.id", ondelete="CASCADE"), nullable=False)
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     extension: Mapped[str] = mapped_column(String(20), nullable=False)
