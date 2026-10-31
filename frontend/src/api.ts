@@ -1,32 +1,73 @@
-import type { ChangeItem, DocumentAnalysis, GeminiDiagnostics, Overview, Publication, Source } from "./types";
+import type { ChangeItem, DocumentAnalysis, DocumentRecord, GeminiDiagnostics, Overview, Publication, Source } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const BROWSER_HEADER = { "X-ReguLens-Request": "browser" };
 
-async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}/api/v1${path}`);
-  if (!response.ok) throw new Error(`API request failed (${response.status}) for ${path}`);
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  picture: string | null;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  if (method !== "GET" && method !== "HEAD") {
+    headers.set("X-ReguLens-Request", "browser");
+  }
+  const response = await fetch(`${API_BASE}/api/v1${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const detail = typeof payload.detail === "string" ? payload.detail : `API request failed (${response.status}) for ${path}`;
+    throw new Error(detail);
+  }
   return response.json() as Promise<T>;
+}
+
+async function listDocuments(): Promise<{ items: DocumentRecord[]; total: number; persistence_available: boolean; access_enabled?: boolean; message?: string }> {
+  return request<{ items: DocumentRecord[]; total: number; persistence_available: boolean; access_enabled?: boolean; message?: string }>("/documents");
+}
+
+async function documentDetail(documentVersionId: string): Promise<DocumentAnalysis> {
+  return request<DocumentAnalysis>(`/documents/${encodeURIComponent(documentVersionId)}`);
 }
 
 async function analyzeDocument(file: File): Promise<DocumentAnalysis> {
   const body = new FormData();
   body.append("file", file);
-  const response = await fetch(`${API_BASE}/api/v1/documents/analyze`, {
+  return request<DocumentAnalysis>("/documents/analyze", { method: "POST", headers: BROWSER_HEADER, body });
+}
+
+async function googleLogin(credential: string): Promise<{ user: AuthUser; expires_in: number }> {
+  return request<{ user: AuthUser; expires_in: number }>("/auth/google", {
     method: "POST",
-    body,
+    headers: { ...BROWSER_HEADER, "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.detail ?? `Document analysis failed (${response.status}).`);
-  }
-  return payload as DocumentAnalysis;
 }
 
 export const api = {
   overview: () => request<Overview>("/overview"),
   publications: () => request<{ items: Publication[]; total: number }>("/publications"),
   changes: () => request<{ items: ChangeItem[]; total: number }>("/changes"),
+  updateFindingStatus: (findingId: string, status: "open" | "in_progress" | "compliant") =>
+    request<{ id: string; compliance_status: string }>(`/findings/${encodeURIComponent(findingId)}/status`, {
+      method: "PATCH",
+      headers: { ...BROWSER_HEADER, "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }),
   sources: () => request<{ items: Source[]; total: number }>("/sources"),
   geminiDiagnostics: () => request<GeminiDiagnostics>("/diagnostics/gemini"),
+  listDocuments,
+  documentDetail,
   analyzeDocument,
+  currentUser: () => request<{ user: AuthUser }>("/auth/me"),
+  oauthNonce: () => request<{ nonce: string }>("/auth/nonce", { method: "POST", headers: BROWSER_HEADER }),
+  googleLogin,
+  logout: () => request<{ success: boolean }>("/auth/logout", { method: "POST", headers: BROWSER_HEADER }),
 };

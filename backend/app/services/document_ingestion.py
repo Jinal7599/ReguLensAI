@@ -291,91 +291,19 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
     segments = extract_segments(filename, content)
     full_text = "\n".join(segment.text for segment in segments)
     fallback_metadata = _fallback_metadata(filename, full_text)
-    # Refresh .env discovery before deciding whether Gemini is configured.
-    gemini_config = gemini_configuration()
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    model_name_configured = str(gemini_config["model"])
-    extraction_method = "Rule-based fallback"
-    gemini_status = "not_configured"
-    extraction_note = (
-        "GEMINI_API_KEY was not found. Add it to the repository-root .env file, "
-        "then restart the FastAPI server. Candidate clauses are rule-based and require review."
-    )
-    summary = "Document text was extracted. Configure GEMINI_API_KEY to enable structured AI analysis."
-    metadata = fallback_metadata
-    obligations = _fallback_obligations(segments)
-    model_name: str | None = None
+    from app.services.document_intelligence import extract_regulatory_intelligence
 
-    if api_key:
-        logger.info(
-            "Gemini analysis requested: configured=true model=%s key_source=%s filename=%s",
-            model_name_configured,
-            gemini_config["key_source"],
-            Path(filename).name,
-        )
-        try:
-            gemini_result = _run_gemini(segments, filename)
-            payload = gemini_result["payload"]
-            model_metadata = payload.get("document_metadata") or {}
-            metadata = {
-                key: str(model_metadata.get(key) or fallback_metadata[key])
-                for key in fallback_metadata
-            }
-            summary = str(payload.get("summary") or summary)
-            valid_references = {segment.reference for segment in segments}
-            verified_obligations: list[dict[str, Any]] = []
-            for item in payload.get("obligations", [])[:40]:
-                if not isinstance(item, dict):
-                    continue
-                excerpt = str(item.get("source_excerpt") or "").strip()
-                reference = str(item.get("source_reference") or "").strip()
-                excerpt_verified = bool(excerpt) and any(
-                    _normalise(excerpt) in _normalise(segment.text) for segment in segments
-                )
-                reference_verified = reference in valid_references
-                verified_obligations.append({
-                    "requirement": str(item.get("requirement") or "").strip(),
-                    "classification": str(item.get("classification") or "Other"),
-                    "applies_to": [str(value) for value in item.get("applies_to", []) if str(value).strip()],
-                    "deadline": str(item.get("deadline") or "Not identified"),
-                    "source_reference": reference if reference_verified else "Unverified source reference",
-                    "source_excerpt": excerpt,
-                    "evidence_verified": excerpt_verified and reference_verified,
-                })
-            obligations = verified_obligations
-            extraction_method = "Gemini structured extraction"
-            gemini_status = "used"
-            extraction_note = (
-                "AI-generated extraction. Evidence is marked verified only when the quoted text "
-                "and page/paragraph reference match the uploaded document. Human review is required."
-            )
-            model_name = gemini_result["model"]
-            logger.info("Gemini analysis completed successfully using model=%s", model_name)
-        except Exception as exc:
-            gemini_status = "failed"
-            logger.exception("Gemini document analysis failed; using rule-based fallback.")
-            error_text = str(exc).lower()
-            if "api key not valid" in error_text or "invalid api key" in error_text or "unauthenticated" in error_text:
-                reason = "Gemini rejected the API key. Check that it is valid, active and allowed to use the Gemini API."
-            elif "quota" in error_text or "resource_exhausted" in error_text or "429" in error_text or "rate limit" in error_text:
-                reason = "Gemini quota or rate limit was reached. Check API usage and billing limits."
-            elif "404" in error_text or ("not found" in error_text and "model" in error_text):
-                reason = "The configured Gemini model was not found or is unavailable to this API key. Check GEMINI_MODEL."
-            elif "timed out" in error_text or "timeout" in error_text or "connection" in error_text:
-                reason = "The Gemini request timed out or could not connect. Check network connectivity and retry."
-            else:
-                reason = f"Gemini request failed ({type(exc).__name__}). Check the FastAPI terminal for the detailed error."
-            extraction_note = f"{reason} Rule-based candidate extraction was used instead."
+    intelligence = extract_regulatory_intelligence(filename, segments, fallback_metadata)
+    metadata = intelligence["metadata"]
+    obligations = intelligence["obligations"]
+    clauses = intelligence["clauses"]
+    references = intelligence["references"]
+    extraction_method = intelligence["method"]
+    gemini_status = intelligence["gemini_status"]
+    model_name = intelligence["model"]
+    summary = intelligence["summary"]
+    extraction_note = intelligence["note"]
 
-    else:
-        logger.warning(
-            "Gemini was not called: GEMINI_API_KEY is empty. key_source=%s local_env_files=%s",
-            gemini_config["key_source"],
-            gemini_config["local_env_files_found"],
-        )
-
-    if not obligations:
-        extraction_note += " No candidate obligation clauses were detected."
     title = metadata.get("title") or Path(filename).stem
     publication_id = f"UPL-{uuid4().hex[:8].upper()}"
     area = metadata.get("business_area") or "General regulatory"
@@ -407,8 +335,20 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
             "model": model_name,
             "summary": summary,
             "metadata": metadata,
+            "clauses": clauses,
+            "clause_count": len(clauses),
             "obligations": obligations,
             "obligation_count": len(obligations),
+            "references": references,
+            "reference_count": len(references),
             "note": extraction_note,
+        },
+        # Internal persistence context is removed by the API before returning JSON.
+        "_persistence": {
+            "extracted_text": full_text,
+            "source_sections": [
+                {"reference": segment.reference, "text": segment.text}
+                for segment in segments
+            ],
         },
     }
