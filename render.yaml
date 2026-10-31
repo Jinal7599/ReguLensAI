@@ -1,3 +1,10 @@
+# ReguLensAI Render Blueprint
+# Deploy both services from the repository root using Render's Blueprint flow.
+# After the first deploy, set the cross-service URLs in the Render dashboard:
+#   API:      ALLOWED_ORIGINS = https://<frontend-service>.onrender.com
+#   Frontend: VITE_API_BASE_URL = https://<api-service>.onrender.com
+# VITE_API_BASE_URL is a build-time variable; changing it requires a frontend redeploy.
+
 services:
   - type: web
     name: regulens-ai-api
