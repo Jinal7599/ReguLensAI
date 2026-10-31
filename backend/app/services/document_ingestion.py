@@ -14,7 +14,7 @@ from uuid import uuid4
 from docx import Document
 from pypdf import PdfReader
 
-from app.core.config import load_local_environment
+from app.core.config import gemini_configuration, load_local_environment
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -295,7 +295,9 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
     # Explicit process variables, including Render settings, take precedence.
     load_local_environment()
 
+    gemini_config = gemini_configuration()
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    model_name_configured = str(gemini_config["model"])
     extraction_method = "Rule-based fallback"
     gemini_status = "not_configured"
     extraction_note = (
@@ -308,6 +310,12 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
     model_name: str | None = None
 
     if api_key:
+        logger.info(
+            "Gemini analysis requested: configured=true model=%s key_source=%s filename=%s",
+            model_name_configured,
+            gemini_config["key_source"],
+            Path(filename).name,
+        )
         try:
             gemini_result = _run_gemini(segments, filename)
             payload = gemini_result["payload"]
@@ -345,6 +353,7 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
                 "and page/paragraph reference match the uploaded document. Human review is required."
             )
             model_name = gemini_result["model"]
+            logger.info("Gemini analysis completed successfully using model=%s", model_name)
         except Exception as exc:
             gemini_status = "failed"
             logger.exception("Gemini document analysis failed; using rule-based fallback.")
@@ -360,6 +369,13 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
             else:
                 reason = f"Gemini request failed ({type(exc).__name__}). Check the FastAPI terminal for the detailed error."
             extraction_note = f"{reason} Rule-based candidate extraction was used instead."
+
+    else:
+        logger.warning(
+            "Gemini was not called: GEMINI_API_KEY is empty. key_source=%s local_env_files=%s",
+            gemini_config["key_source"],
+            gemini_config["local_env_files_found"],
+        )
 
     if not obligations:
         extraction_note += " No candidate obligation clauses were detected."
