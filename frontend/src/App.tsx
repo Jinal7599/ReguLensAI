@@ -10,7 +10,7 @@ import DocumentIntake from "./DocumentIntake";
 import GoogleSignInButton from "./GoogleSignInButton";
 import SourceMonitor from "./SourceMonitor";
 
-type Page = "Dashboard" | "Documents" | "Sources";
+type Page = "Dashboard" | "Internal Policy Repository" | "Sources";
 type DashboardFilter = "actions" | "documents" | "compliant";
 type FindingSeverity = "high" | "medium" | "low";
 type RiskTone = "red" | "yellow" | "green";
@@ -189,10 +189,10 @@ export default function App() {
           <LayoutDashboard size={18} />{!sidebarCollapsed && <span>Dashboard</span>}
           {page === "Dashboard" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
         </button>
-        <button className={`nav-item ${page === "Documents" ? "active" : ""}`} onClick={() => setPage("Documents")}
-          title={sidebarCollapsed ? "Documents" : undefined}>
-          <UploadCloud size={18} />{!sidebarCollapsed && <span>Documents</span>}
-          {page === "Documents" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
+        <button className={`nav-item ${page === "Internal Policy Repository" ? "active" : ""}`} onClick={() => setPage("Internal Policy Repository")}
+          title={sidebarCollapsed ? "Internal Policy Repository" : undefined}>
+          <UploadCloud size={18} />{!sidebarCollapsed && <span>Internal Policy Repository</span>}
+          {page === "Internal Policy Repository" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
         </button>
         <button className={"nav-item " + (page === "Sources" ? "active" : "")} onClick={() => setPage("Sources")} title={sidebarCollapsed ? "Sources" : undefined}>
           <Globe size={18} />{!sidebarCollapsed && <span>Sources</span>}
@@ -231,12 +231,12 @@ export default function App() {
         {workspaceError && <div className="error-banner"><AlertTriangle size={16} /><span>{workspaceError}</span></div>}
         {page === "Dashboard" && <>
           <div className="simple-page-heading">
-            <div><div className="eyebrow">OVERVIEW</div><h1>Compliance dashboard</h1><p>Your documents and actions at a glance.</p></div>
-            <button className="button primary" onClick={() => setPage("Documents")}><UploadCloud size={15} /> Upload document</button>
+            <div><div className="eyebrow">OVERVIEW</div><h1>Compliance dashboard</h1><p>Your internal policies and review actions at a glance.</p></div>
+            <button className="button primary" onClick={() => setPage("Internal Policy Repository")}><UploadCloud size={15} /> Upload policy</button>
           </div>
 
           <section className="simple-metric-grid" aria-label="Dashboard filters">
-            <Metric label="Documents uploaded" value={documentCount} caption="View saved documents" tone="blue" icon={FileText}
+            <Metric label="Internal Policy Repository" value={documentCount} caption="View uploaded policies and procedures" tone="blue" icon={FileText}
               selected={activeFilter === "documents"} onClick={() => { setActiveFilter("documents"); setSeverityFilter(null); }} />
             <Metric label="Actions to review" value={needsReviewCount} caption="Open or in progress" tone="yellow" icon={Activity}
               selected={activeFilter === "actions"} onClick={() => { setActiveFilter("actions"); setSeverityFilter(null); }} />
@@ -247,8 +247,8 @@ export default function App() {
           <section className="simple-section dashboard-results">
             <div className="simple-section-header">
               <div>
-                <h2>{activeFilter === "documents" ? "Uploaded documents" : activeFilter === "compliant" ? "Marked compliant" : "Actions to review"}</h2>
-                <p>{activeFilter === "documents" ? "Your saved document history." : activeFilter === "compliant" ? "Items your team has explicitly marked compliant." : "Prioritized items that still need attention."}</p>
+                <h2>{activeFilter === "documents" ? "Internal Policy Repository" : activeFilter === "compliant" ? "Marked compliant" : "Actions to review"}</h2>
+                <p>{activeFilter === "documents" ? "Policies, procedures and other internal documents used for impact checks." : activeFilter === "compliant" ? "Items your team has explicitly marked compliant." : "Prioritized items that still need attention."}</p>
               </div>
               <span>{activeFilter === "documents" ? `${documentCount} documents` : `${visibleFindings.length} items`}</span>
             </div>
@@ -269,7 +269,7 @@ export default function App() {
             </div>}
             {activeFilter === "documents" ? (
               workspaceBusy ? <div className="simple-empty">Loading documents…</div>
-                : documents.length === 0 ? <div className="simple-empty"><FileText size={22} /><strong>No documents uploaded</strong><span>Upload a circular to build your repository.</span></div>
+                : documents.length === 0 ? <div className="simple-empty"><FileText size={22} /><strong>Your policy repository is empty</strong><span>Upload internal policies and procedures to check future regulatory changes against them.</span></div>
                   : <div className="simple-upload-list">{documents.map((item) => <div className="simple-upload-row" key={item.document_version_id}>
                       <span className="simple-file-icon"><FileText size={17} /></span>
                       <div><strong>{item.publication.title}</strong><small>{item.filename}</small></div>
@@ -280,7 +280,7 @@ export default function App() {
                 <div className="simple-empty">
                   <ShieldCheck size={22} />
                   <strong>{activeFilter === "compliant" ? "No items marked compliant" : severityFilter ? `No ${severityFilter} severity findings` : "Nothing to review"}</strong>
-                  <span>{activeFilter === "actions" ? (severityFilter ? "Try another severity filter or clear the selected filter." : "Upload a circular to generate recommended actions.") : "Your results will appear here when available."}</span>
+                  <span>{activeFilter === "actions" ? (severityFilter ? "Try another severity filter or clear the selected filter." : "Add a regulatory source or upload a circular to generate review actions.") : "Your results will appear here when available."}</span>
                 </div>
               ) : <div className="simple-action-list">{visibleFindings.slice().sort((a, b) => {
                   const rank = (item: ChangeItem) => item.compliance_status === "compliant" ? 3 : getRiskTone(item) === "red" ? 0 : 1;
@@ -310,10 +310,10 @@ export default function App() {
 
         {page === "Sources" && <SourceMonitor onCrawlComplete={() => void loadWorkspace(false)} />}
 
-        {page === "Documents" && <>
+        {page === "Internal Policy Repository" && <>
           <div className="simple-page-heading">
-            <div><div className="eyebrow">DOCUMENT REPOSITORY</div><h1>Documents</h1><p>{documentCount} saved uploads in your account.</p></div>
-            <span className="upload-count-pill"><FileText size={15} />{documentCount} uploaded</span>
+            <div><div className="eyebrow">INTERNAL POLICY REPOSITORY</div><h1>Internal Policy Repository</h1><p>{documentCount} uploaded policies and documents available for regulatory impact checks.</p></div>
+            <span className="upload-count-pill"><FileText size={15} />{documentCount} documents</span>
           </div>
           <DocumentIntake analysis={latestAnalysis} onAnalyzed={handleDocumentAnalyzed} />
         </>}

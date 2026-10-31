@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from app.services.repository_comparison import _score_internal_policy_document
 
 from app.main import app
 
@@ -213,3 +214,19 @@ def test_repository_does_not_mark_missing_old_clauses_as_withdrawn_without_expli
     assert updated.status_code == 200
     findings = updated.json()["comparison"]["comparisons"][0]["findings"]
     assert all(item["classification"] != "Withdrawn / superseded" for item in findings)
+
+
+def test_internal_policy_match_uses_shared_terms_and_title():
+    result = _score_internal_policy_document(
+        {
+            "title": "New credit risk circular",
+            "extracted_text": "Banks must conduct quarterly independent validation of credit scoring models and retain validation evidence.",
+        },
+        {
+            "title": "Internal credit risk policy",
+            "extracted_text": "The bank shall conduct quarterly independent validation of credit scoring models. The risk team must retain validation evidence.",
+        },
+    )
+    assert result["selected"] is True
+    assert result["matching_method"] == "internal_policy_content_overlap"
+    assert result["evidence"]["shared_term_count"] >= 3

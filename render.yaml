@@ -9,7 +9,7 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: sh -c 'set -e; if [ -n "$DATABASE_URL" ]; then alembic upgrade head; fi; exec uvicorn app.main:app --host 0.0.0.0 --port $PORT'
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/v1/health
     envVars:
       - key: PYTHON_VERSION

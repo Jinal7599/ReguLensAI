@@ -19,9 +19,9 @@ The browser communicates with the backend over HTTP. The backend owns applicatio
 - Searchable regulatory publication feed with region and status filters
 - Change analysis with previous/updated clause panels and review actions (currently synthetic examples)
 - Settings view showing four target regional source groups
-- Manual PDF, DOCX and TXT upload with chunked Gemini document intelligence and rule-based fallback
+- Internal Policy Repository: upload PDF, DOCX and TXT policies/procedures with chunked Gemini document intelligence and rule-based fallback
 - Structured clause extraction, obligation typing, affected entities / departments, deadlines and explicit references to older instruments
-- Repository-wide historical matching for each newly uploaded document, using explicit reference matches plus regulator, jurisdiction, title, business-area and content signals
+- Automatic impact check for each newly fetched regulatory document against uploaded internal policies, plus historical regulatory matching using explicit references, regulator, jurisdiction, title, business-area and content signals
 - Clause alignment and evidence-backed comparison findings using the six required change categories
 - Rule-based comparison fallback when Gemini is unavailable; findings remain flagged for human review
 - PostgreSQL persistence for authorities, instruments, publications, document versions, extracted sections, clauses, obligations, references, relationships, comparisons, findings and analysis jobs
@@ -93,7 +93,7 @@ Tests use isolated SQLite databases and mock Gemini requests. CI applies all Ale
 - GET /api/v1/changes includes persisted findings alongside synthetic demo examples.
 - GET /api/v1/publications includes persisted uploads alongside synthetic demo records in local development.
 - SHA-256 hashes prevent the same file content from being analyzed and stored repeatedly.
-- Every new upload is scored against all previously saved document versions (the synthetic dashboard examples are not treated as source documents). Explicit amendment/repeal references take precedence; regulator, jurisdiction, title, business-area and content signals identify additional relevant candidates. The highest-scoring 20 relevant documents are compared to bound processing cost.
+- Every newly ingested document is checked against previously saved documents. Documents uploaded without a source URL are treated as the internal policy repository and matched by meaningful shared terms/title similarity; fetched regulatory publications are additionally matched to historical publications using explicit amendment/repeal references, regulator, jurisdiction, title, business-area and content signals. Matching is a triage signal, not a compliance decision. The highest-scoring 20 relevant documents are compared to bound processing cost.
 - Saved Milestone A documents that do not have clause records are reconstructed from their persisted source sections and obligations on first comparison. These baselines are labelled as reconstructed rule-based clauses, not as newly Gemini-extracted content.
 - Aligned clauses are compared using deterministic text similarity and optional Gemini interpretation. Findings retain previous/updated wording, source references, classification, possible impact and review status.
 - An unmatched old clause is not automatically labelled withdrawn. Repeal/supersession findings require explicit relationship language in the new document.
@@ -103,7 +103,7 @@ The database stores extracted text, metadata, source sections, obligations and t
 ## Regulatory source monitoring
 
 - The signed-in **Sources** workspace can add RBI Notifications from the RBI-published `https://www.rbi.org.in/notifications_rss.xml` feed and additional public HTTP(S) source URLs. Older RBI monitors saved against the HTML listing page are upgraded to the RSS endpoint on their next crawl.
-- RBI uses the official Notifications listing at `https://www.rbi.org.in/Scripts/NotificationUser.aspx`. The crawler follows notification detail pages, downloads linked PDF/DOCX/TXT files, detects new or changed file bytes by SHA-256, and submits changed documents to the same extraction and historical-comparison pipeline as manual uploads.
+- RBI uses the official Notifications listing at `https://www.rbi.org.in/Scripts/NotificationUser.aspx`. The crawler follows notification detail pages, downloads linked PDF/DOCX/TXT files, detects new or changed file bytes by SHA-256, and submits each new document to extraction and an automatic comparison against uploaded internal policies and relevant historical publications. Review findings are surfaced in the dashboard's Actions to review list.
 - Custom sources can be configured independently per user. Polling intervals are configurable from 15 minutes to 24 hours; sources can be paused, checked on demand or removed.
 - The API scheduler runs when `SOURCE_CRAWLER_ENABLED=true` (enabled in the Render Blueprint) and checks sources according to each saved interval. For deployments with multiple API replicas, run a single crawler-enabled replica until a distributed scheduler/lock is introduced.
 - Source URLs are validated as public HTTP(S) addresses; local, private, reserved IP addresses and non-standard ports are rejected. Crawl frequency and document size are bounded.

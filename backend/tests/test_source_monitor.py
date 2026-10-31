@@ -173,6 +173,22 @@ def test_rbi_monitor_uses_notifications_rss_and_upgrades_existing_rows(monkeypat
         assert result["last_error"] is None
 
 
+
+def test_rss_feed_follows_article_links_without_query_ids(monkeypatch):
+    feed_url = "https://regulator.example/feed.xml"
+    article_url = "https://regulator.example/circulars/credit-risk-update"
+    article_html = b'<html><a href="/files/credit-risk-update.pdf">Download circular</a></html>'
+
+    def fake_get(url, **kwargs):
+        assert url == article_url
+        return article_html, "text/html", article_url, {}
+
+    monkeypatch.setattr(source_monitor, "_safe_get", fake_get)
+    feed = b"""<?xml version="1.0"?><rss><channel><item><title>Credit risk update</title><link>https://regulator.example/circulars/credit-risk-update</link></item></channel></rss>"""
+    assert source_monitor._discover_document_links(feed_url, feed, "application/rss+xml") == [
+        ("Credit risk update", "https://regulator.example/files/credit-risk-update.pdf")
+    ]
+
 def test_rss_parser_prefers_document_enclosures():
     feed = b"""<?xml version="1.0"?><rss><channel><item><title>RBI circular</title><link>https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12</link><enclosure url="https://rbidocs.rbi.org.in/circular.pdf" type="application/pdf" /></item></channel></rss>"""
     assert source_monitor._feed_items(feed) == [("RBI circular", "https://rbidocs.rbi.org.in/circular.pdf")]

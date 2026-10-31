@@ -179,6 +179,38 @@ def _score_historical_document(
     }
 
 
+
+def _score_internal_policy_document(
+    new_metadata: dict[str, Any], old_metadata: dict[str, Any]
+) -> dict[str, Any]:
+    """Find an uploaded internal policy that shares meaningful terms with a new source document."""
+    new_tokens = _tokens(str(new_metadata.get("extracted_text") or "")[:12000])
+    old_tokens = _tokens(str(old_metadata.get("extracted_text") or "")[:12000])
+    shared_tokens = new_tokens & old_tokens
+    union = new_tokens | old_tokens
+    content_overlap = len(shared_tokens) / len(union) if union else 0.0
+    title_similarity = _similarity(
+        str(new_metadata.get("title") or ""), str(old_metadata.get("title") or "")
+    )
+    selected = len(shared_tokens) >= 3 and content_overlap >= 0.015
+    selected = selected or title_similarity >= 0.25
+    return {
+        "selected": selected,
+        "score": round(min(1.0, 0.35 + 0.55 * content_overlap + 0.10 * title_similarity), 4),
+        "relationship_type": "related_to",
+        "matching_method": "internal_policy_content_overlap",
+        "evidence": {
+            "internal_policy": True,
+            "explicit_reference": False,
+            "reference_evidence": [],
+            "shared_terms": sorted(shared_tokens)[:20],
+            "shared_term_count": len(shared_tokens),
+            "content_overlap": round(content_overlap, 4),
+            "title_similarity": round(title_similarity, 4),
+        },
+    }
+
+
 def _clause_similarity(old_clause: dict[str, Any], new_clause: dict[str, Any]) -> float:
     base = _similarity(str(old_clause.get("text") or ""), str(new_clause.get("text") or ""))
     old_number = _norm(str(old_clause.get("clause_number") or ""))
@@ -594,12 +626,19 @@ def run_repository_comparison(
     scored: list[tuple[float, DocumentVersion, Publication, str, dict[str, Any]]] = []
     for version, publication, authority in history_rows:
         old_metadata = _metadata(version, publication)
-        score = _score_historical_document(
-            new_metadata,
-            old_metadata,
-            new_authority,
-            authority.name if authority else "",
-        )
+        # Documents uploaded by the user (without a source URL) form the internal
+        # policy repository. New RSS publications are checked against these documents
+        # using transparent keyword overlap; source-to-source history keeps its existing
+        # authority/jurisdiction matching rules.
+        if (new_publication.source_url or "").strip() and not (publication.source_url or "").strip():
+            score = _score_internal_policy_document(new_metadata, old_metadata)
+        else:
+            score = _score_historical_document(
+                new_metadata,
+                old_metadata,
+                new_authority,
+                authority.name if authority else "",
+            )
         if score["selected"]:
             scored.append((score["score"], version, publication, authority.name if authority else "", score))
     scored.sort(key=lambda item: item[0], reverse=True)

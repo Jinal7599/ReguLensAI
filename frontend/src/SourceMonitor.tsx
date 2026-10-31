@@ -50,7 +50,7 @@ export default function SourceMonitor({ onCrawlComplete }: { onCrawlComplete: ()
       if (result.last_error) {
         setError(result.last_error);
       } else {
-        setNotice("Check complete: " + result.documents_ingested + " new or updated document(s) ingested; " + result.duplicates_skipped + " duplicate(s) skipped.");
+        setNotice("Compliance check complete: " + result.documents_ingested + " new or updated document(s) ingested; " + result.duplicates_skipped + " duplicate(s) skipped.");
       }
       if (result.documents_ingested > 0) onCrawlComplete();
     } catch (e) { setError(e instanceof Error ? e.message : "Source check failed."); }
@@ -74,7 +74,7 @@ export default function SourceMonitor({ onCrawlComplete }: { onCrawlComplete: ()
 
   return <div className="source-monitor-page">
     <div className="simple-page-heading">
-      <div><div className="eyebrow">AUTOMATED REGULATORY MONITORING</div><h1>Regulatory sources</h1><p>Monitor official publications and detect new or amended documents.</p></div>
+      <div><div className="eyebrow">AUTOMATED REGULATORY MONITORING</div><h1>Regulatory sources</h1><p>Monitor official publications and automatically check new documents against your Internal Policy Repository.</p></div>
       <span className="upload-count-pill"><Globe size={15} />{items.filter(item => item.enabled).length} active</span>
     </div>
     {error && <div className="source-error-banner" role="alert">{error}</div>}
@@ -101,7 +101,7 @@ export default function SourceMonitor({ onCrawlComplete }: { onCrawlComplete: ()
       </div>
     </section>
     <section className="simple-section">
-      <div className="simple-section-header"><div><h2>Monitored sources</h2><p>Changes are sent through the document extraction and historical comparison workflow.</p></div><span>{items.length} sources</span></div>
+      <div className="simple-section-header"><div><h2>Monitored sources</h2><p>New regulatory documents are checked against uploaded policies and earlier publications. Findings appear under Actions to review.</p></div><span>{items.length} sources</span></div>
       {loading ? <div className="simple-empty">Loading sources…</div> : items.length === 0 ? <div className="simple-empty"><Globe size={22} /><strong>No sources configured</strong><span>Add RBI Notifications or a custom public URL.</span></div> :
         <div className="source-list">{items.map(source => <article className="source-card" key={source.id}>
           <div className="source-card-top"><div className="source-copy"><strong>{source.name}</strong><small>{source.url}</small></div><span className={"source-status " + (source.enabled ? "enabled" : "disabled")}>{source.enabled ? "Monitoring" : "Paused"}</span></div>
