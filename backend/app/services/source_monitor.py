@@ -227,7 +227,10 @@ def _discover_document_links(
             absolute = urljoin(source_url, href)
             if _is_document_url(absolute):
                 discovered.append((title, absolute))
-            elif _is_detail_url(absolute):
+            else:
+                # RSS feeds often link to human-readable article pages whose URLs
+                # do not contain query-string IDs. Follow those pages to find the
+                # downloadable circular or notification attachment.
                 detail_pages.append((title, absolute))
     else:
         for title, href in root_links:
