@@ -77,7 +77,7 @@ python -m pytest
 | GET | `/api/v1/overview` | Dashboard metrics and coverage |
 | GET | `/api/v1/publications` | Publication search and filters |
 | GET | `/api/v1/changes` | Synthetic change assessments |
-| GET | `/api/v1/sources` | Regional source configuration |
+| GET | `/api/v1/sources` | Regional source configuration |\n| POST | `/api/v1/documents/analyze` | Upload and analyze a PDF, DOCX or TXT document |
 
 ## Render deployment
 
@@ -101,7 +101,7 @@ Verify the deployment:
 
 The Blueprint uses Render's Free plan for the initial prototype. Free services may spin down when idle and take time to wake on the next request. Change the plan in Render if always-on availability is needed. The sample service names in `render.yaml` may need adjustment if already taken in your Render workspace.
 
-Do not commit API keys, OAuth secrets, database credentials or other secrets. Add them through Render's environment settings when the corresponding integrations are implemented.
+To enable Gemini extraction, add `GEMINI_API_KEY` to the **API service** environment in Render. The default model is `gemini-flash-latest`; override it with `GEMINI_MODEL` when needed. Never put the key in the frontend or commit it to GitHub. Without the key, uploads still work through a rule-based candidate-clause extractor.\n\nThe current upload flow does not retain documents or extracted results on the server. Render Free web services have ephemeral filesystems, so persistent publication history and document storage are a later milestone. Do not upload confidential customer or production documents to this prototype.
 
 ## Development principles
 
