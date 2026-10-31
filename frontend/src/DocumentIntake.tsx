@@ -1,10 +1,10 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
   AlertCircle, CheckCircle2, CloudUpload, FileText, LoaderCircle,
   ShieldCheck, Sparkles, Upload, XCircle,
 } from "lucide-react";
 import { api } from "./api";
-import type { DocumentAnalysis } from "./types";
+import type { DocumentAnalysis, GeminiDiagnostics } from "./types";
 
 interface DocumentIntakeProps {
   analysis: DocumentAnalysis | null;
@@ -23,6 +23,11 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
+  const [geminiConfig, setGeminiConfig] = useState<GeminiDiagnostics | null>(null);
+
+  useEffect(() => {
+    api.geminiDiagnostics().then(setGeminiConfig).catch(() => setGeminiConfig(null));
+  }, []);
 
   function selectFile(candidate?: File) {
     setError("");
@@ -106,14 +111,21 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
       <div className="process-step"><span>2</span><div><strong>Metadata identification</strong><small>Identify regulator, jurisdiction, dates and reference number.</small></div></div>
       <div className="process-step"><span>3</span><div><strong>Obligation extraction</strong><small>Find requirements, applicability, deadlines and source evidence.</small></div></div>
       <div className="process-step"><span>4</span><div><strong>Human review</strong><small>Verify the extracted facts before treating them as compliance actions.</small></div></div>
-      <div className="process-note">Gemini structured extraction is enabled when <code>GEMINI_API_KEY</code> is set on the API service. Otherwise, the system uses a clearly labelled rule-based fallback.</div>
+      <div className={"process-note " + (geminiConfig?.configured ? "gemini-ready" : "gemini-missing")}>
+        {geminiConfig ? <>
+          <strong>{geminiConfig.configured ? "Gemini key detected by this API" : "Gemini key not detected by this API"}</strong>
+          <span>{geminiConfig.configured
+            ? `Model: ${geminiConfig.model} · Source: ${geminiConfig.key_source}`
+            : "Check the repository-root .env file or backend/.env, then restart FastAPI."}</span>
+        </> : <span>Unable to read Gemini configuration from the API. Check the backend URL and try again.</span>}
+      </div>
     </section>
 
     {analysis && <section className="panel analysis-result">
       <div className="analysis-result-header">
         <div><div className="eyebrow">LATEST UPLOAD · {analysis.publication.id}</div>
           <h2>{analysis.publication.title}</h2><p>{analysis.document.filename} · {formatBytes(analysis.document.size_bytes)} · {analysis.document.source_sections} source sections</p></div>
-        <span className={"pill " + (analysis.extraction.method.startsWith("Gemini") ? "green" : "amber")}><i />{analysis.extraction.method}</span>
+        <span className={"pill " + (analysis.extraction.gemini_status === "used" ? "green" : "amber")}><i />{analysis.extraction.method}</span>
       </div>
       <div className="result-summary"><Sparkles size={16} /><p>{analysis.extraction.summary}</p></div>
       <div className="metadata-grid">
