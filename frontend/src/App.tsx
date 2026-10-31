@@ -1,324 +1,278 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, Bell, Check,
-  ChevronRight, CircleAlert, Clock3, FileCheck2, FileSearch, FileText,
-  FileUp, Filter, Globe2, LayoutDashboard, RefreshCw, Search, Settings,
-  ShieldCheck, Sparkles, LogOut, type LucideIcon,
+  Activity, AlertTriangle, CheckCircle2, ChevronRight, FileText,
+  LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw,
+  ShieldCheck, UploadCloud, Clock3,
 } from "lucide-react";
-import { api } from "./api";
-import type { ChangeItem, DocumentAnalysis, Overview, Publication, Source } from "./types";
+import { api, type AuthUser } from "./api";
+import type { ChangeItem, DocumentAnalysis, DocumentRecord } from "./types";
 import DocumentIntake from "./DocumentIntake";
 import GoogleSignInButton from "./GoogleSignInButton";
-import type { AuthUser } from "./api";
 
-type Page = "Overview" | "Document Intake" | "Regulatory Feed" | "Change Analysis" | "Settings";
-const navItems: { label: Page; icon: LucideIcon }[] = [
-  { label: "Overview", icon: LayoutDashboard },
-  { label: "Document Intake", icon: FileUp },
-  { label: "Regulatory Feed", icon: FileSearch },
-  { label: "Change Analysis", icon: Activity },
-  { label: "Settings", icon: Settings },
-];
-const statusTone: Record<string, string> = {
-  "Awaiting review": "amber", Processed: "green", New: "blue",
-  "Relationship unresolved": "rose", Configured: "green",
-  "Needs configuration": "amber",
-};
+type Page = "Dashboard" | "Documents";
+type RiskTone = "red" | "yellow" | "green";
 
-function StatusPill({ value }: { value: string }) {
-  return <span className={"pill " + (statusTone[value] ?? "neutral")}><i />{value}</span>;
+function getSeverity(item: ChangeItem): "high" | "medium" | "low" {
+  if (item.severity) return item.severity;
+  if (["New obligation", "Withdrawn / superseded", "Deadline extended / shortened"].includes(item.classification)) return "high";
+  if (item.classification === "No material change") return "low";
+  return "medium";
 }
 
-function MetricCard({ label, value, note, icon: Icon, tone = "blue" }: {
-  label: string; value: string | number; note: string; icon: LucideIcon; tone?: string;
+function getRiskTone(item: ChangeItem): RiskTone {
+  if (item.compliance_status === "compliant") return "green";
+  const confidence = item.confidence ?? 0;
+  return getSeverity(item) === "high" && confidence >= 0.7 ? "red" : "yellow";
+}
+
+function riskLabel(item: ChangeItem): string {
+  const tone = getRiskTone(item);
+  if (tone === "green") return "Compliant";
+  if (tone === "red") return "High risk";
+  return "Review required";
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "Date unavailable";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "Date unavailable" : parsed.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function Metric({ label, value, caption, tone, icon: Icon }: {
+  label: string; value: number; caption: string; tone: RiskTone | "blue"; icon: typeof FileText;
 }) {
-  return <article className="metric-card">
-    <div className="metric-top"><span>{label}</span><span className={"metric-icon " + tone}><Icon size={18} /></span></div>
-    <div className="metric-value">{value}</div><div className="metric-note">{note}</div>
+  return <article className="simple-metric">
+    <div className="simple-metric-top"><span>{label}</span><span className={`simple-metric-icon ${tone}`}><Icon size={17} /></span></div>
+    <strong>{value}</strong><small>{caption}</small>
   </article>;
 }
 
-function PageHeader({ title, description, onRefresh, refreshing }: {
-  title: string; description: string; onRefresh: () => void; refreshing: boolean;
-}) {
-  return <div className="page-heading">
-    <div><div className="eyebrow">REGULATORY INTELLIGENCE</div><h1>{title}</h1><p>{description}</p></div>
-    <button className="button secondary" onClick={onRefresh} disabled={refreshing}>
-      <RefreshCw size={15} className={refreshing ? "spin" : ""} /> Refresh data
-    </button>
-  </div>;
-}
-
 export default function App() {
-  const [page, setPage] = useState<Page>("Overview");
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [publications, setPublications] = useState<Publication[]>([]);
-  const [changes, setChanges] = useState<ChangeItem[]>([]);
-  const [sources, setSources] = useState<Source[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [country, setCountry] = useState("All regions");
-  const [status, setStatus] = useState("All statuses");
-  const [selectedChange, setSelectedChange] = useState("CHG-001");
-  const [completed, setCompleted] = useState<string[]>([]);
-  const [latestAnalysis, setLatestAnalysis] = useState<DocumentAnalysis | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [page, setPage] = useState<Page>("Dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [documentCount, setDocumentCount] = useState(0);
+  const [findings, setFindings] = useState<ChangeItem[]>([]);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [latestAnalysis, setLatestAnalysis] = useState<DocumentAnalysis | null>(null);
+  const [updatingFinding, setUpdatingFinding] = useState("");
 
-  async function loadData(isRefresh = false) {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setError("");
+  const loadWorkspace = useCallback(async (showBusy = true) => {
+    if (showBusy) setWorkspaceBusy(true);
+    setWorkspaceError("");
     try {
-      const results = await Promise.all([
-        api.overview(), api.publications(), api.changes(), api.sources(),
-      ]);
-      setOverview(results[0]);
-      setPublications(results[1].items);
-      setChanges(results[2].items);
-      setSources(results[3].items);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to connect to the API.");
+      const [documentResult, changeResult] = await Promise.all([api.listDocuments(), api.changes()]);
+      setDocuments(documentResult.items);
+      setDocumentCount(documentResult.total);
+      setFindings(changeResult.items.filter((item) => item.is_demo !== true));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Unable to load your compliance workspace.");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (showBusy) setWorkspaceBusy(false);
     }
-  }
-
-  useEffect(() => { void loadData(); }, []);
+  }, []);
 
   useEffect(() => {
     api.currentUser()
-      .then((session) => setCurrentUser(session.user))
+      .then(async (session) => {
+        setCurrentUser(session.user);
+        await loadWorkspace(false);
+      })
       .catch(() => setCurrentUser(null))
       .finally(() => setAuthReady(true));
-  }, []);
+  }, [loadWorkspace]);
 
   const handleGoogleCredential = useCallback(async (credential: string) => {
     setAuthError("");
     try {
       const session = await api.googleLogin(credential);
       setCurrentUser(session.user);
-      await loadData(true);
-      setPage("Document Intake");
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : "Google sign-in failed.");
+      setPage("Dashboard");
+      await loadWorkspace();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Google sign-in failed. Please try again.");
     }
-  }, []);
+  }, [loadWorkspace]);
 
   async function handleSignOut() {
     try {
       await api.logout();
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : "Unable to sign out.");
+    } catch {
+      // Clear the local workspace even if the session has already expired.
+    }
+    setCurrentUser(null);
+    setDocuments([]);
+    setFindings([]);
+    setDocumentCount(0);
+    setLatestAnalysis(null);
+    setPage("Dashboard");
+  }
+
+  async function handleComplianceStatus(item: ChangeItem) {
+    const nextStatus = item.compliance_status === "compliant" ? "open" : "compliant";
+    setUpdatingFinding(item.id);
+    try {
+      await api.updateFindingStatus(item.id, nextStatus);
+      setFindings((current) => current.map((finding) =>
+        finding.id === item.id ? { ...finding, compliance_status: nextStatus } : finding
+      ));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Unable to update compliance status.");
     } finally {
-      setCurrentUser(null);
-      setLatestAnalysis(null);
-      await loadData(true);
+      setUpdatingFinding("");
     }
   }
 
-  const filteredPublications = useMemo(() => publications.filter((item) => {
-    const searchable = [item.id, item.title, item.authority, item.country, item.area].join(" ").toLowerCase();
-    return (!query || searchable.includes(query.toLowerCase()))
-      && (country === "All regions" || item.country === country)
-      && (status === "All statuses" || item.status === status);
-  }), [publications, query, country, status]);
-
-  const activeChange = changes.find((item) => item.id === selectedChange) ?? changes[0];
-  const descriptions: Record<Page, string> = {
-    Overview: "A clear view of regulatory developments and review priorities across your regions.",
-    "Document Intake": "Upload a regulatory publication and extract obligations with traceable source evidence.",
-    "Regulatory Feed": "Discover, search and review regulatory publications from configured authorities.",
-    "Change Analysis": "Understand what changed, why it matters and which actions may be required.",
-    Settings: "Manage regulatory source coverage and workspace configuration.",
-  };
-
-  function handleDocumentAnalyzed(result: DocumentAnalysis, fromRepository = false) {
+  function handleDocumentAnalyzed(result: DocumentAnalysis) {
     setLatestAnalysis(result);
-    if (fromRepository || result.persistence?.duplicate) return;
-    void api.changes().then((response) => setChanges(response.items)).catch(() => undefined);
-    setPublications((current) => [result.publication, ...current.filter((item) => item.id !== result.publication.id)]);
-    setOverview((current) => {
-      if (!current) return current;
-      const existing = current.coverage.find((item) => item.country === result.publication.country);
-      const coverage = existing
-        ? current.coverage.map((item) => item.country === result.publication.country
-          ? { ...item, count: item.count + 1 } : item)
-        : [...current.coverage, { country: result.publication.country, count: 1 }];
-      return {
-        ...current,
-        total_publications: current.total_publications + 1,
-        new_or_unreviewed: current.new_or_unreviewed + 1,
-        awaiting_review: current.awaiting_review + 1,
-        regions_represented: coverage.length,
-        coverage,
-        recent_publications: [result.publication, ...current.recent_publications.filter((item) => item.id !== result.publication.id)].slice(0, 5),
-      };
-    });
+    void loadWorkspace();
   }
 
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><ShieldCheck size={21} /></div>
-        <div><strong>ReguLens<span>AI</span></strong><small>REGULATORY INTELLIGENCE</small></div>
+  const openActions = useMemo(
+    () => findings.filter((item) => item.compliance_status !== "compliant"),
+    [findings],
+  );
+  const highRiskCount = openActions.filter(
+    (item) => getRiskTone(item) === "red",
+  ).length;
+  const compliantCount = findings.filter(
+    (item) => item.compliance_status === "compliant",
+  ).length;
+  const needsReviewCount = openActions.length;
+  const recentDocuments = documents.slice(0, 6);
+
+  if (!authReady) {
+    return <main className="login-screen"><div className="login-card"><div className="login-mark"><ShieldCheck size={25} /></div><strong>ReguLens<span>AI</span></strong><p>Checking your secure session…</p><div className="login-spinner" /></div></main>;
+  }
+
+  if (!currentUser) {
+    return <main className="login-screen">
+      <section className="login-card">
+        <div className="login-mark"><ShieldCheck size={27} /></div>
+        <div className="eyebrow">REGULATORY COMPLIANCE WORKSPACE</div>
+        <h1>Welcome to ReguLensAI</h1>
+        <p>Sign in to review regulatory changes, track recommended actions and manage your documents.</p>
+        {authError && <div className="auth-error-banner" role="alert">{authError}</div>}
+        <GoogleSignInButton onCredential={handleGoogleCredential} />
+        <small>Your documents and compliance workspace are private to your account.</small>
+      </section>
+    </main>;
+  }
+
+  return <div className={`app-shell simple-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <aside className="sidebar simple-sidebar">
+      <div className="brand">
+        <div className="brand-mark"><ShieldCheck size={21} /></div>
+        {!sidebarCollapsed && <div className="brand-copy"><strong>ReguLens<span>AI</span></strong><small>COMPLIANCE WORKSPACE</small></div>}
+        <button className="sidebar-toggle" onClick={() => setSidebarCollapsed((value) => !value)}
+          title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>
+          {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+        </button>
       </div>
-      <div className="workspace-label">WORKSPACE</div>
-      <nav className="nav-list" aria-label="Main navigation">
-        {navItems.map(({ label, icon: Icon }) => <button key={label}
-          className={"nav-item " + (page === label ? "active" : "")} onClick={() => setPage(label)}>
-          <Icon size={18} /><span>{label}</span>{page === label && <ChevronRight size={15} className="nav-chevron" />}
-        </button>)}
+      <nav className="nav-list simple-nav" aria-label="Main navigation">
+        <button className={`nav-item ${page === "Dashboard" ? "active" : ""}`} onClick={() => setPage("Dashboard")}
+          title={sidebarCollapsed ? "Dashboard" : undefined}>
+          <LayoutDashboard size={18} />{!sidebarCollapsed && <span>Dashboard</span>}
+          {page === "Dashboard" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
+        </button>
+        <button className={`nav-item ${page === "Documents" ? "active" : ""}`} onClick={() => setPage("Documents")}
+          title={sidebarCollapsed ? "Documents" : undefined}>
+          <UploadCloud size={18} />{!sidebarCollapsed && <span>Documents</span>}
+          {page === "Documents" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
+        </button>
       </nav>
-      <div className="sidebar-bottom">
-        <div className="coverage-card">
-          <div className="coverage-card-title"><Globe2 size={15} /> Regional coverage</div>
-          <strong>{sources.length || 4} source groups</strong>
-          <div className="coverage-dots"><i /><i /><i /><i /></div>
-          <small>India · UAE · KSA · Africa</small>
-        </div>
+      <div className="sidebar-bottom simple-sidebar-bottom">
         <div className="user-row">
-          <div className="avatar">{currentUser?.picture ? <img src={currentUser.picture} alt="" /> : (currentUser?.name?.slice(0, 2).toUpperCase() ?? "RL")}</div>
-          <div><strong>{currentUser?.name ?? "Compliance workspace"}</strong><small>{currentUser?.email ?? "Public demo environment"}</small></div>
-          {currentUser && <button className="icon-button user-signout" title="Sign out" aria-label="Sign out" onClick={() => void handleSignOut()}><LogOut size={15} /></button>}
+          <div className="avatar">{currentUser.picture ? <img src={currentUser.picture} alt="" /> : (currentUser.name?.slice(0, 2).toUpperCase() ?? "RL")}</div>
+          {!sidebarCollapsed && <div><strong>{currentUser.name ?? "Account"}</strong><small>{currentUser.email}</small></div>}
+          {!sidebarCollapsed && <button className="icon-button user-signout" title="Sign out" aria-label="Sign out" onClick={() => void handleSignOut()}><LogOut size={15} /></button>}
         </div>
       </div>
     </aside>
 
     <main className="main-area">
-      <header className="topbar">
-        <div className="breadcrumb">Workspace <ChevronRight size={13} /> <strong>{page}</strong></div>
-        <div className="topbar-actions"><span className="environment"><i /> DEMO + PERSISTED UPLOADS</span>
-          {currentUser
-            ? <span className="signed-in-label">Signed in as {currentUser.email}</span>
-            : <button className="button secondary compact" onClick={() => setPage("Document Intake")}>Sign in to upload</button>}
-          <button className="icon-button" aria-label="Notifications"><Bell size={18} /></button>
+      <header className="topbar simple-topbar">
+        <div className="breadcrumb"><strong>{page}</strong></div>
+        <div className="topbar-actions">
+          <button className="icon-button" onClick={() => void loadWorkspace()} disabled={workspaceBusy} aria-label="Refresh dashboard" title="Refresh">
+            <RefreshCw size={17} className={workspaceBusy ? "spin" : ""} />
+          </button>
+          <span className="signed-in-label">{currentUser.email}</span>
+          <button className="icon-button topbar-signout" onClick={() => void handleSignOut()} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>
         </div>
       </header>
-      <div className="content">
-        {error && <div className="error-banner"><CircleAlert size={17} /><div>
-          <strong>Could not load live workspace data</strong>
-          <span>{error}. Start the FastAPI server and check the API URL.</span>
-        </div><button onClick={() => void loadData(true)}><RefreshCw size={15} /> Retry</button></div>}
 
-        {loading ? <div className="loading-panel"><div className="loader" />
-          <span>Connecting to regulatory intelligence services…</span></div> : <>
-          <PageHeader title={page} description={descriptions[page]}
-            onRefresh={() => void loadData(true)} refreshing={refreshing} />
+      <div className="content simple-content">
+        {workspaceError && <div className="error-banner"><AlertTriangle size={16} /><span>{workspaceError}</span></div>}
+        {page === "Dashboard" && <>
+          <div className="simple-page-heading">
+            <div><div className="eyebrow">OVERVIEW</div><h1>Compliance dashboard</h1><p>Your documents and actions at a glance.</p></div>
+            <button className="button primary" onClick={() => setPage("Documents")}><UploadCloud size={15} /> Upload document</button>
+          </div>
 
-          {page === "Overview" && overview && <>
-            <section className="metric-grid">
-              <MetricCard label="Total publications" value={overview.total_publications} note="In the searchable repository" icon={FileText} />
-              <MetricCard label="New or unreviewed" value={overview.new_or_unreviewed} note="Require attention or triage" icon={Activity} tone="amber" />
-              <MetricCard label="Awaiting review" value={overview.awaiting_review} note="Pending human assessment" icon={Clock3} tone="purple" />
-              <MetricCard label="Regions represented" value={overview.regions_represented} note="Across the demo source set" icon={Globe2} tone="green" />
-            </section>
-            <section className="dashboard-grid">
-              <article className="panel publications-panel">
-                <div className="panel-heading"><div><h2>Recent developments</h2><p>Latest items in your regulatory feed</p></div>
-                  <button className="text-button" onClick={() => setPage("Regulatory Feed")}>View all <ArrowRight size={14} /></button>
-                </div>
-                <div className="table-wrap"><table><thead><tr><th>PUBLICATION</th><th>REGION</th><th>PUBLISHED</th><th>STATUS</th></tr></thead>
-                  <tbody>{overview.recent_publications.map((item) => <tr key={item.id}>
-                    <td><strong>{item.title}</strong><small>{item.authority}</small></td><td>{item.country}</td>
-                    <td>{item.published}</td><td><StatusPill value={item.status} /></td>
-                  </tr>)}</tbody></table></div>
-              </article>
-              <article className="panel coverage-panel">
-                <div className="panel-heading"><div><h2>Regional coverage</h2><p>Publications by jurisdiction</p></div><Globe2 size={18} className="muted-icon" /></div>
-                <div className="coverage-list">{overview.coverage.map((item) => {
-                  const max = Math.max(...overview.coverage.map((x) => x.count), 1);
-                  return <div className="coverage-item" key={item.country}>
-                    <div><span>{item.country}</span><strong>{item.count}</strong></div>
-                    <div className="bar-track"><i style={{ width: ((item.count / max) * 100) + "%" }} /></div>
-                  </div>;
-                })}</div>
-                <div className="coverage-footnote"><span className="dot-blue" /> Synthetic publications in demo dataset</div>
-              </article>
-            </section>
-            <div className="notice"><Sparkles size={17} /><span><strong>Built for review, not blind automation.</strong>
-              Regulatory interpretations and suggested actions should be verified by qualified compliance reviewers.</span></div>
-          </>}
+          <section className="simple-metric-grid">
+            <Metric label="Documents uploaded" value={documentCount} caption="Saved to your workspace" tone="blue" icon={FileText} />
+            <Metric label="High-risk findings" value={highRiskCount} caption="High severity + confidence ≥ 70%" tone="red" icon={AlertTriangle} />
+            <Metric label="Actions to review" value={needsReviewCount} caption="Open or in progress" tone="yellow" icon={Activity} />
+            <Metric label="Marked compliant" value={compliantCount} caption="Confirmed by your team" tone="green" icon={CheckCircle2} />
+          </section>
 
-          {page === "Document Intake" && (currentUser
-            ? <DocumentIntake analysis={latestAnalysis} onAnalyzed={handleDocumentAnalyzed} />
-            : <section className="panel auth-gate">
-                <div className="auth-gate-icon"><ShieldCheck size={28} /></div>
-                <div className="eyebrow">PRIVATE DOCUMENT WORKSPACE</div>
-                <h2>Sign in to manage your documents</h2>
-                <p>Your uploads, extracted obligations and historical comparisons are private to your Google account. Sign in to continue.</p>
-                {authError && <div className="auth-error-banner" role="alert">{authError}</div>}
-                {authReady
-                  ? <GoogleSignInButton onCredential={handleGoogleCredential} />
-                  : <span className="muted">Checking your session…</span>}
-                <small>Each account has an isolated document repository. Other users cannot access your uploads.</small>
-              </section>)}
+          <section className="simple-section">
+            <div className="simple-section-header"><div><h2>Recommended actions</h2><p>Prioritized by severity and confidence.</p></div><span>{openActions.length} open</span></div>
+            {workspaceBusy ? <div className="simple-empty">Loading findings…</div>
+              : openActions.length === 0 && findings.length === 0
+                ? <div className="simple-empty"><ShieldCheck size={22} /><strong>No findings yet</strong><span>Upload a circular to generate recommended actions.</span></div>
+                : <div className="simple-action-list">{findings.slice().sort((a, b) => {
+                    const rank = (item: ChangeItem) => item.compliance_status === "compliant" ? 3 : getRiskTone(item) === "red" ? 0 : 1;
+                    return rank(a) - rank(b) || (b.confidence ?? 0) - (a.confidence ?? 0);
+                  }).slice(0, 8).map((item) => {
+                    const tone = getRiskTone(item);
+                    const actionText = item.actions?.[0] ?? item.impact ?? "Review the updated regulatory requirement.";
+                    return <article className={`simple-action-card ${tone}`} key={item.id}>
+                      <div className="simple-action-main">
+                        <span className={`risk-chip ${tone}`}>{riskLabel(item)}</span>
+                        <h3>{item.publication}</h3>
+                        <p>{actionText}</p>
+                        <div className="simple-action-meta">
+                          <span>{item.classification}</span><span>{getSeverity(item)} severity</span>
+                          <span>Confidence: {item.confidence == null ? "Not scored" : `${Math.round(item.confidence * 100)}%`}</span>
+                        </div>
+                      </div>
+                      <button className={`compliance-toggle ${item.compliance_status === "compliant" ? "is-compliant" : ""}`}
+                        disabled={updatingFinding === item.id}
+                        onClick={() => void handleComplianceStatus(item)}>
+                        {updatingFinding === item.id ? "Saving…" : item.compliance_status === "compliant" ? "Reopen" : "Mark compliant"}
+                      </button>
+                    </article>;
+                  })}
+                  {findings.length > 8 && <div className="simple-list-foot">Showing 8 of {findings.length} findings.</div>}
+                </div>}
+          </section>
 
-          {page === "Regulatory Feed" && <section className="panel feed-panel">
-            <div className="filter-row">
-              <label className="search-box"><Search size={17} /><input value={query}
-                onChange={(event) => setQuery(event.target.value)} placeholder="Search title, authority, reference…" /></label>
-              <label className="select-wrap"><Filter size={15} /><select value={country} onChange={(event) => setCountry(event.target.value)}>
-                <option>All regions</option>{[...new Set(publications.map((item) => item.country))].map((item) => <option key={item}>{item}</option>)}
-              </select></label>
-              <label className="select-wrap"><select value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option>All statuses</option>{[...new Set(publications.map((item) => item.status))].map((item) => <option key={item}>{item}</option>)}
-              </select></label>
-            </div>
-            <div className="result-count">{filteredPublications.length} publications found</div>
-            <div className="table-wrap"><table><thead><tr><th>PUBLICATION</th><th>REFERENCE</th><th>REGION</th><th>BUSINESS AREA</th><th>EFFECTIVE DATE</th><th>STATUS</th></tr></thead>
-              <tbody>{filteredPublications.map((item) => <tr key={item.id}>
-                <td><strong>{item.title}</strong><small>{item.authority}</small></td><td>{item.id}</td><td>{item.country}</td>
-                <td>{item.area}</td><td>{item.effective}</td><td><StatusPill value={item.status} /></td>
-              </tr>)}</tbody></table></div>
-            {filteredPublications.length === 0 && <div className="empty-state"><FileSearch size={25} />
-              <strong>No publications match your filters</strong><span>Try changing the search term or filters.</span></div>}
-          </section>}
-
-          {page === "Change Analysis" && activeChange && <div className="analysis-layout">
-            <section className="panel change-list"><div className="panel-heading"><div><h2>Detected changes</h2><p>{changes.length} items to review</p></div></div>
-              {changes.map((item) => <button key={item.id} className={"change-option " + (selectedChange === item.id ? "selected" : "")}
-                onClick={() => setSelectedChange(item.id)}><span className={"priority-dot " + item.priority.toLowerCase()} />
-                <span><strong>{item.publication}</strong><small>{item.country} · {item.classification}</small></span><ChevronRight size={16} /></button>)}
-            </section>
-            <section className="panel analysis-detail">
-              <div className="panel-heading"><div><div className="eyebrow">CHANGE ASSESSMENT · {activeChange.id}</div>
-                <h2>{activeChange.publication}</h2><p>{activeChange.country} · {activeChange.classification}</p></div>
-                <StatusPill value={activeChange.priority} /></div>
-              <div className="clause-grid">
-                <article className="clause-card previous"><span>PREVIOUS POSITION</span><p>{activeChange.previous}</p></article>
-                <article className="clause-card updated"><span>UPDATED POSITION</span><p>{activeChange.updated}</p></article>
-              </div>
-              <div className="detail-section"><h3><Sparkles size={16} /> Potential business impact</h3><p>{activeChange.impact}</p></div>
-              <div className="detail-section"><h3><FileCheck2 size={16} /> Suggested review actions</h3><div className="action-list">
-                {activeChange.actions.map((action) => {
-                  const key = activeChange.id + ":" + action;
-                  const checked = completed.includes(key);
-                  return <button className={"action-item " + (checked ? "done" : "")} key={action}
-                    onClick={() => setCompleted((current) => checked ? current.filter((value) => value !== key) : [...current, key])}>
-                    <span className="check-box">{checked && <Check size={13} />}</span>{action}</button>;
-                })}
-              </div></div>
-              <div className="source-note"><ShieldCheck size={15} /><span>Evidence: {activeChange.source}</span></div>
-            </section>
-          </div>}
-
-          {page === "Settings" && <section className="panel settings-panel">
-            <div className="panel-heading"><div><h2>Regulatory source coverage</h2><p>Configure the authorities monitored by your workspace.</p></div>
-              <span className="pill neutral">4 regions</span></div>
-            {sources.map((source) => <div className="source-row" key={source.country}>
-              <div className="source-icon"><Globe2 size={18} /></div>
-              <div className="source-info"><strong>{source.authority}</strong><small>{source.country} · {source.region}</small></div>
-              <StatusPill value={source.status} /><button className="icon-button" aria-label={"Configure " + source.country} disabled><Settings size={16} /></button>
-            </div>)}
-            <div className="settings-note"><CircleAlert size={16} /><span>Connector URLs and monitoring schedules will be configured in the source-monitoring iteration.</span></div>
-            <div className="settings-footer"><div><strong>Workspace preferences</strong><small>Monitoring schedule · Notifications · API configuration</small></div>
-              <button className="button secondary" disabled>Coming in next iteration</button></div>
-          </section>}
+          <section className="simple-section uploads-section">
+            <div className="simple-section-header"><div><h2>Recent uploads</h2><p>Upload audit for your account.</p></div><button className="text-button" onClick={() => setPage("Documents")}>View documents <ChevronRight size={14} /></button></div>
+            {recentDocuments.length === 0 ? <div className="simple-empty compact-empty">No documents uploaded yet.</div>
+              : <div className="simple-upload-list">{recentDocuments.map((item) => <div className="simple-upload-row" key={item.document_version_id}>
+                  <span className="simple-file-icon"><FileText size={17} /></span>
+                  <div><strong>{item.publication.title}</strong><small>{item.filename}</small></div>
+                  <time>{formatDate(item.created_at)}</time>
+                </div>)}</div>}
+          </section>
         </>}
-        <footer className="footer"><span>© 2026 ReguLens AI</span><span><i /> Public demo data · Private uploads require sign-in</span></footer>
+
+        {page === "Documents" && <>
+          <div className="simple-page-heading">
+            <div><div className="eyebrow">DOCUMENT REPOSITORY</div><h1>Documents</h1><p>{documentCount} saved uploads in your account.</p></div>
+            <span className="upload-count-pill"><FileText size={15} />{documentCount} uploaded</span>
+          </div>
+          <DocumentIntake analysis={latestAnalysis} onAnalyzed={handleDocumentAnalyzed} />
+        </>}
+        <footer className="footer simple-footer"><span>© 2026 ReguLensAI</span><span>Private workspace · Human-reviewed compliance status</span></footer>
       </div>
     </main>
   </div>;
