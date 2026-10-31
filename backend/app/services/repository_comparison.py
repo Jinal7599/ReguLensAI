@@ -630,7 +630,7 @@ def run_repository_comparison(
         # policy repository. New RSS publications are checked against these documents
         # using transparent keyword overlap; source-to-source history keeps its existing
         # authority/jurisdiction matching rules.
-        if not (publication.source_url or "").strip():
+        if (new_publication.source_url or "").strip() and not (publication.source_url or "").strip():
             score = _score_internal_policy_document(new_metadata, old_metadata)
         else:
             score = _score_historical_document(
