@@ -227,13 +227,21 @@ def comparison_detail(
     return result
 
 
+def _finding_severity(classification: str) -> str:
+    if classification in {"New obligation", "Withdrawn / superseded", "Deadline extended / shortened"}:
+        return "high"
+    if classification == "No material change":
+        return "low"
+    return "medium"
+
+
 @router.get("/changes")
 def changes(
     session: Session | None = Depends(get_optional_db),
     user: User | None = Depends(get_optional_user),
 ) -> dict:
     if session is None or user is None:
-        return {"items": CHANGES, "total": len(CHANGES)}
+        return {"items": [{**item, "is_demo": True} for item in CHANGES], "total": len(CHANGES)}
     rows = session.execute(
         select(ChangeFinding, DocumentComparison, DocumentVersion, Publication)
         .join(DocumentComparison, DocumentComparison.id == ChangeFinding.comparison_id)
@@ -249,7 +257,10 @@ def changes(
             "publication": publication.title,
             "country": publication.jurisdiction,
             "classification": finding.classification,
-            "priority": "High" if finding.classification in {"New obligation", "Withdrawn / superseded", "Deadline extended / shortened"} else "Medium",
+            "priority": "High" if _finding_severity(finding.classification) == "high" else "Medium",
+            "severity": _finding_severity(finding.classification),
+            "confidence": finding.confidence,
+            "compliance_status": finding.compliance_status,
             "previous": finding.previous_text or "No historical clause identified.",
             "updated": finding.updated_text or "No updated clause identified.",
             "impact": finding.why_it_matters or finding.change_summary,
@@ -258,8 +269,38 @@ def changes(
             "comparison_id": comparison.id,
             "evidence_verified": finding.evidence_verified,
             "needs_review": finding.needs_review,
+            "is_demo": False,
         })
-    return {"items": stored + CHANGES, "total": len(stored) + len(CHANGES)}
+    demo_items = [{**item, "is_demo": True} for item in CHANGES]
+    return {"items": stored + demo_items, "total": len(stored) + len(demo_items)}
+
+
+@router.patch("/findings/{finding_id}/status")
+def update_finding_compliance_status(
+    finding_id: str,
+    payload: dict[str, str],
+    request: Request,
+    session: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    require_browser_request(request)
+    status = payload.get("status", "")
+    if status not in {"open", "in_progress", "compliant"}:
+        raise HTTPException(status_code=422, detail="Status must be open, in_progress or compliant.")
+    finding = session.scalar(
+        select(ChangeFinding)
+        .join(DocumentComparison, DocumentComparison.id == ChangeFinding.comparison_id)
+        .join(DocumentVersion, DocumentVersion.id == DocumentComparison.new_document_version_id)
+        .where(
+            ChangeFinding.id == finding_id,
+            DocumentVersion.owner_user_id == user.id,
+        )
+    )
+    if finding is None:
+        raise HTTPException(status_code=404, detail="Finding was not found.")
+    finding.compliance_status = status
+    session.commit()
+    return {"id": finding.id, "compliance_status": finding.compliance_status}
 
 
 @router.get("/sources")
