@@ -55,6 +55,12 @@ export const api = {
   overview: () => request<Overview>("/overview"),
   publications: () => request<{ items: Publication[]; total: number }>("/publications"),
   changes: () => request<{ items: ChangeItem[]; total: number }>("/changes"),
+  updateFindingStatus: (findingId: string, status: "open" | "in_progress" | "compliant") =>
+    request<{ id: string; compliance_status: string }>(`/findings/${encodeURIComponent(findingId)}/status`, {
+      method: "PATCH",
+      headers: { ...BROWSER_HEADER, "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }),
   sources: () => request<{ items: Source[]; total: number }>("/sources"),
   geminiDiagnostics: () => request<GeminiDiagnostics>("/diagnostics/gemini"),
   listDocuments,
