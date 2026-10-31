@@ -192,7 +192,7 @@ export default function App() {
         <button className={`nav-item ${page === "Internal Policy Repository" ? "active" : ""}`} onClick={() => setPage("Internal Policy Repository")}
           title={sidebarCollapsed ? "Internal Policy Repository" : undefined}>
           <UploadCloud size={18} />{!sidebarCollapsed && <span>Internal Policy Repository</span>}
-          {page === "Documents" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
+          {page === "Internal Policy Repository" && !sidebarCollapsed && <ChevronRight size={15} className="nav-chevron" />}
         </button>
         <button className={"nav-item " + (page === "Sources" ? "active" : "")} onClick={() => setPage("Sources")} title={sidebarCollapsed ? "Sources" : undefined}>
           <Globe size={18} />{!sidebarCollapsed && <span>Sources</span>}
@@ -232,7 +232,7 @@ export default function App() {
         {page === "Dashboard" && <>
           <div className="simple-page-heading">
             <div><div className="eyebrow">OVERVIEW</div><h1>Compliance dashboard</h1><p>Your documents and actions at a glance.</p></div>
-            <button className="button primary" onClick={() => setPage("Documents")}><UploadCloud size={15} /> Upload policy</button>
+            <button className="button primary" onClick={() => setPage("Internal Policy Repository")}><UploadCloud size={15} /> Upload policy</button>
           </div>
 
           <section className="simple-metric-grid" aria-label="Dashboard filters">
@@ -310,7 +310,7 @@ export default function App() {
 
         {page === "Sources" && <SourceMonitor onCrawlComplete={() => void loadWorkspace(false)} />}
 
-        {page === "Documents" && <>
+        {page === "Internal Policy Repository" && <>
           <div className="simple-page-heading">
             <div><div className="eyebrow">INTERNAL POLICY REPOSITORY</div><h1>Internal Policy Repository</h1><p>{documentCount} uploaded policies and documents available for regulatory impact checks.</p></div>
             <span className="upload-count-pill"><FileText size={15} />{documentCount} documents</span>
