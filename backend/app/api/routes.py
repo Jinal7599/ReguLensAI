@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from app.data.demo_data import CHANGES, PUBLICATIONS, SOURCES
+from app.core.config import gemini_configuration
 from app.services.document_ingestion import (
     MAX_UPLOAD_BYTES,
     DocumentIngestionError,
@@ -17,6 +18,12 @@ router = APIRouter(prefix="/api/v1", tags=["Regulatory intelligence"])
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "regulens-api", "version": "1.0.0"}
+
+
+@router.get("/diagnostics/gemini")
+def gemini_diagnostics() -> dict:
+    """Report Gemini configuration state without exposing the API key."""
+    return gemini_configuration()
 
 
 @router.get("/overview")
