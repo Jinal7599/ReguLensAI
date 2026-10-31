@@ -168,11 +168,6 @@ export default function App() {
       <div className="brand">
         <div className="brand-mark"><ShieldCheck size={21} /></div>
         {!sidebarCollapsed && <div className="brand-copy"><strong>ReguLens<span>AI</span></strong><small>COMPLIANCE WORKSPACE</small></div>}
-        <button className="sidebar-toggle" onClick={() => setSidebarCollapsed((value) => !value)}
-          title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>
-          {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-        </button>
       </div>
       <nav className="nav-list simple-nav" aria-label="Main navigation">
         <button className={`nav-item ${page === "Dashboard" ? "active" : ""}`} onClick={() => setPage("Dashboard")}
@@ -197,7 +192,14 @@ export default function App() {
 
     <main className="main-area">
       <header className="topbar simple-topbar">
-        <div className="breadcrumb"><strong>{page}</strong></div>
+        <div className="breadcrumb">
+          <button className="icon-button sidebar-toggle-top" onClick={() => setSidebarCollapsed((value) => !value)}
+            title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>
+            {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          </button>
+          <strong>{page}</strong>
+        </div>
         <div className="topbar-actions">
           <button className="icon-button" onClick={() => void loadWorkspace()} disabled={workspaceBusy} aria-label="Refresh dashboard" title="Refresh">
             <RefreshCw size={17} className={workspaceBusy ? "spin" : ""} />
