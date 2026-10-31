@@ -405,3 +405,29 @@ td small { color: #75849a; font-size: 12.5px; }
   outline: 3px solid rgba(79, 139, 190, .28);
   outline-offset: 2px;
 }
+
+
+.history-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 10px 0 12px;
+  color: #7c899c;
+  font-size: 12px;
+}
+.historical-findings {
+  margin-top: 12px;
+  border-top: 1px solid #edf0f4;
+  padding-top: 10px;
+}
+.historical-findings > summary {
+  width: fit-content;
+  color: #456b8e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.historical-findings[open] > summary {
+  margin-bottom: 12px;
+}
