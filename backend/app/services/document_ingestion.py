@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -13,10 +14,13 @@ from uuid import uuid4
 from docx import Document
 from pypdf import PdfReader
 
+from app.core.config import load_local_environment
+
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_ANALYSIS_CHARS = 45_000
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+logger = logging.getLogger(__name__)
 
 OBLIGATION_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -287,17 +291,23 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
     segments = extract_segments(filename, content)
     full_text = "\n".join(segment.text for segment in segments)
     fallback_metadata = _fallback_metadata(filename, full_text)
+    # Load .env from the repository root (or backend/) for local development.
+    # Explicit process variables, including Render settings, take precedence.
+    load_local_environment()
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
     extraction_method = "Rule-based fallback"
+    gemini_status = "not_configured"
     extraction_note = (
-        "Gemini is not configured. These candidate clauses were found using text patterns; "
-        "they are not AI-verified and require manual review."
+        "GEMINI_API_KEY was not found. Add it to the repository-root .env file, "
+        "then restart the FastAPI server. Candidate clauses are rule-based and require review."
     )
-    summary = "Document text was extracted. Add a Gemini API key to enable structured AI analysis."
+    summary = "Document text was extracted. Configure GEMINI_API_KEY to enable structured AI analysis."
     metadata = fallback_metadata
     obligations = _fallback_obligations(segments)
     model_name: str | None = None
 
-    if os.getenv("GEMINI_API_KEY", "").strip():
+    if api_key:
         try:
             gemini_result = _run_gemini(segments, filename)
             payload = gemini_result["payload"]
@@ -329,16 +339,27 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
                 })
             obligations = verified_obligations
             extraction_method = "Gemini structured extraction"
+            gemini_status = "used"
             extraction_note = (
                 "AI-generated extraction. Evidence is marked verified only when the quoted text "
                 "and page/paragraph reference match the uploaded document. Human review is required."
             )
             model_name = gemini_result["model"]
         except Exception as exc:
-            extraction_note = (
-                "Gemini analysis could not be completed; rule-based candidate extraction was used "
-                f"instead ({type(exc).__name__}). Check the API key, model availability and quota."
-            )
+            gemini_status = "failed"
+            logger.exception("Gemini document analysis failed; using rule-based fallback.")
+            error_text = str(exc).lower()
+            if "api key not valid" in error_text or "invalid api key" in error_text or "unauthenticated" in error_text:
+                reason = "Gemini rejected the API key. Check that it is valid, active and allowed to use the Gemini API."
+            elif "quota" in error_text or "resource_exhausted" in error_text or "429" in error_text or "rate limit" in error_text:
+                reason = "Gemini quota or rate limit was reached. Check API usage and billing limits."
+            elif "404" in error_text or ("not found" in error_text and "model" in error_text):
+                reason = "The configured Gemini model was not found or is unavailable to this API key. Check GEMINI_MODEL."
+            elif "timed out" in error_text or "timeout" in error_text or "connection" in error_text:
+                reason = "The Gemini request timed out or could not connect. Check network connectivity and retry."
+            else:
+                reason = f"Gemini request failed ({type(exc).__name__}). Check the FastAPI terminal for the detailed error."
+            extraction_note = f"{reason} Rule-based candidate extraction was used instead."
 
     if not obligations:
         extraction_note += " No candidate obligation clauses were detected."
@@ -369,6 +390,7 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
         },
         "extraction": {
             "method": extraction_method,
+            "gemini_status": gemini_status,
             "model": model_name,
             "summary": summary,
             "metadata": metadata,
