@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, CheckCircle2, ChevronRight, FileText,
   LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw,
-  ShieldCheck, UploadCloud, Clock3, type LucideIcon,
+  ShieldCheck, UploadCloud, type LucideIcon,
 } from "lucide-react";
 import { api, type AuthUser } from "./api";
 import type { ChangeItem, DocumentAnalysis, DocumentRecord } from "./types";
