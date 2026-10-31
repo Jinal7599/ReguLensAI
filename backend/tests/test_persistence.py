@@ -133,12 +133,10 @@ def test_private_document_apis_require_authentication_in_production(monkeypatch)
         files={"file": ("private.txt", b"An entity shall retain audit evidence.", "text/plain")},
     )
     assert response.status_code == 401
-    assert "authentication" in response.json()["detail"].lower()
+    assert "sign in with google" in response.json()["detail"].lower()
 
     listing = client.get("/api/v1/documents")
-    assert listing.status_code == 200
-    assert listing.json()["access_enabled"] is False
-    assert listing.json()["persistence_available"] is False
+    assert listing.status_code == 401
 
 
 
