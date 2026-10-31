@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.api import auth_routes
-from app.db.models import DocumentVersion, Publication, User
+from app.db.models import ChangeFinding, DocumentComparison, DocumentVersion, Publication, User
 from app.db.session import get_session_factory
 from app.main import app
 from app.repositories.document_repository import find_document_by_hash, list_documents
@@ -138,4 +138,80 @@ def test_another_users_document_is_not_found(monkeypatch):
     client.cookies.set("regulens_session", token)
     response = client.get(f"/api/v1/documents/{other_doc_id}")
     assert response.status_code == 404
+    client.cookies.clear()
+
+
+def test_compliance_status_update_is_persisted_for_document_owner(monkeypatch):
+    client.cookies.clear()
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-that-is-at-least-32-characters-long")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://frontend.example")
+    factory = get_session_factory()
+    assert factory is not None
+
+    with factory() as session:
+        owner, new_document_id = _seed_user_and_document(
+            session, "compliance-owner@example.com", "compliance-owner-sub", "new-doc-checksum"
+        )
+        historical_publication = Publication(
+            id=f"PUB-{uuid.uuid4().hex[:12]}",
+            title="Historical baseline",
+            jurisdiction="India",
+            status="Processed",
+        )
+        session.add(historical_publication)
+        session.flush()
+        historical_version = DocumentVersion(
+            owner_user_id=owner.id,
+            publication_id=historical_publication.id,
+            filename="baseline.txt",
+            extension="txt",
+            size_bytes=8,
+            sha256="historical-doc-checksum",
+            extraction_method="test",
+            extraction_result={},
+            extracted_text="baseline",
+        )
+        session.add(historical_version)
+        session.flush()
+        comparison = DocumentComparison(
+            new_document_version_id=new_document_id,
+            historical_document_version_id=historical_version.id,
+            relationship_type="amends",
+            match_confidence=0.95,
+            matching_method="test",
+            match_evidence={},
+            analysis_method="test",
+            status="completed",
+            summary="Test comparison",
+        )
+        session.add(comparison)
+        session.flush()
+        finding = ChangeFinding(
+            comparison_id=comparison.id,
+            classification="New obligation",
+            change_summary="A new requirement was introduced.",
+            why_it_matters="Review the new requirement.",
+            confidence=0.95,
+            evidence_verified=True,
+            needs_review=True,
+        )
+        session.add(finding)
+        session.commit()
+        finding_id = finding.id
+        token = create_session_token(owner.id)
+
+    client.cookies.set("regulens_session", token)
+    response = client.patch(
+        f"/api/v1/findings/{finding_id}/status",
+        json={"status": "compliant"},
+        headers={"Origin": "https://frontend.example", "X-ReguLens-Request": "browser"},
+    )
+    assert response.status_code == 200
+    assert response.json()["compliance_status"] == "compliant"
+
+    with factory() as session:
+        persisted = session.get(ChangeFinding, finding_id)
+        assert persisted is not None
+        assert persisted.compliance_status == "compliant"
     client.cookies.clear()

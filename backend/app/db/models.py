@@ -264,4 +264,5 @@ class ChangeFinding(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     evidence_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     needs_review: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    compliance_status: Mapped[str] = mapped_column(String(24), default="open", server_default="open", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
