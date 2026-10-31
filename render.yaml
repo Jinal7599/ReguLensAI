@@ -1,9 +1,6 @@
 # ReguLensAI Render Blueprint
-# Deploy both services from the repository root using Render's Blueprint flow.
-# After the first deploy, set the cross-service URLs in the Render dashboard:
-#   API:      ALLOWED_ORIGINS = https://<frontend-service>.onrender.com
-#   Frontend: VITE_API_BASE_URL = https://<api-service>.onrender.com
-# VITE_API_BASE_URL is a build-time variable; changing it requires a frontend redeploy.
+# PostgreSQL is provisioned separately; set DATABASE_URL on the API service.
+# VITE_API_BASE_URL is a build-time variable and requires a frontend redeploy when changed.
 
 services:
   - type: web
@@ -12,11 +9,15 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: sh -c 'if [ -n "$DATABASE_URL" ]; then alembic upgrade head; fi; exec uvicorn app.main:app --host 0.0.0.0 --port $PORT'
     healthCheckPath: /api/v1/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
       - key: ALLOWED_ORIGINS
         sync: false
 

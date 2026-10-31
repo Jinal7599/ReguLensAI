@@ -26,3 +26,9 @@ frontend/.vite/
 .DS_Store
 .idea/
 .vscode/
+
+# Local databases and development persistence
+backend/.local/
+*.db
+*.sqlite
+*.sqlite3

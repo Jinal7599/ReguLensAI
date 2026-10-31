@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/iteration-1-streamlit-foundation
+      - feat/milestone-a-postgres-persistence
   pull_request:
     branches:
       - main
@@ -24,6 +25,11 @@ jobs:
       - name: Install dependencies
         working-directory: backend
         run: pip install -r requirements-dev.txt
+      - name: Validate database migration
+        working-directory: backend
+        run: |
+          mkdir -p .local
+          DATABASE_URL=sqlite:///./.local/migration-check.db alembic upgrade head
       - name: Run API tests
         working-directory: backend
         run: python -m pytest -q

@@ -4,11 +4,11 @@ import {
   ShieldCheck, Sparkles, Upload, XCircle,
 } from "lucide-react";
 import { api } from "./api";
-import type { DocumentAnalysis, GeminiDiagnostics } from "./types";
+import type { DocumentAnalysis, DocumentRecord, GeminiDiagnostics } from "./types";
 
 interface DocumentIntakeProps {
   analysis: DocumentAnalysis | null;
-  onAnalyzed: (result: DocumentAnalysis) => void;
+  onAnalyzed: (result: DocumentAnalysis, fromRepository?: boolean) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -24,9 +24,29 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const [geminiConfig, setGeminiConfig] = useState<GeminiDiagnostics | null>(null);
+  const [recentDocuments, setRecentDocuments] = useState<DocumentRecord[]>([]);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+
+  async function loadRecentDocuments() {
+    setHistoryBusy(true);
+    setHistoryError("");
+    try {
+      const result = await api.listDocuments();
+      setRecentDocuments(result.items);
+      if (!result.persistence_available) {
+        setHistoryError(result.message ?? "Persistent document access is not available on this API.");
+      }
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unable to load saved documents.");
+    } finally {
+      setHistoryBusy(false);
+    }
+  }
 
   useEffect(() => {
     api.geminiDiagnostics().then(setGeminiConfig).catch(() => setGeminiConfig(null));
+    void loadRecentDocuments();
   }, []);
 
   function selectFile(candidate?: File) {
@@ -59,12 +79,27 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
     try {
       const result = await api.analyzeDocument(file);
       onAnalyzed(result);
+      await loadRecentDocuments();
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Document analysis failed.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function openSavedDocument(documentVersionId: string) {
+    setError("");
+    setHistoryError("");
+    setHistoryBusy(true);
+    try {
+      const result = await api.documentDetail(documentVersionId);
+      onAnalyzed(result, true);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Unable to open saved analysis.");
+    } finally {
+      setHistoryBusy(false);
     }
   }
 
@@ -98,11 +133,30 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
       </div>}
       {error && <div className="intake-error"><AlertCircle size={16} /><span>{error}</span></div>}
       <div className="intake-actions">
-        <div><ShieldCheck size={15} /><span>Processed by the backend. The original file is not saved.</span></div>
+        <div><ShieldCheck size={15} /><span>Analysis is persisted. Original file storage is not enabled yet.</span></div>
         <button className="button primary" onClick={() => void handleAnalyze()} disabled={!file || busy}>
           {busy ? <><LoaderCircle size={15} className="spin" /> Analyzing…</> : <><Sparkles size={15} /> Analyze document</>}
         </button>
       </div>
+    </section>
+
+    <section className="panel">
+      <div className="panel-heading">
+        <div><h2>Saved documents</h2><p>Persisted analyses that can be reopened after refresh.</p></div>
+        <button className="text-button" onClick={() => void loadRecentDocuments()} disabled={historyBusy}>
+          {historyBusy ? "Loading…" : "Refresh"}
+        </button>
+      </div>
+      {historyError && <div className="intake-error"><AlertCircle size={16} /><span>{historyError}</span></div>}
+      {recentDocuments.length > 0 ? recentDocuments.map((item) => <div className="source-row" key={item.document_version_id}>
+        <div className="source-icon"><FileText size={18} /></div>
+        <div className="source-info">
+          <strong>{item.publication.title}</strong>
+          <small>{item.filename} · {item.publication.country} · {item.extraction_method}</small>
+        </div>
+        <span className="pill green"><i />Saved</span>
+        <button className="text-button" onClick={() => void openSavedDocument(item.document_version_id)} disabled={historyBusy}>Open</button>
+      </div>) : <div className="empty-state"><FileText size={22} /><strong>No saved documents yet</strong><span>Uploaded and analyzed documents will appear here.</span></div>}
     </section>
 
     <section className="panel intake-process">
@@ -155,7 +209,7 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
       </div> : <div className="empty-obligations"><FileText size={20} /><strong>No candidate obligations identified</strong>
         <span>Review the document manually. The parser may not identify tables, scanned text or unusual legal phrasing.</span></div>}
       <div className="extraction-note"><AlertCircle size={15} /><span>{analysis.extraction.note}</span></div>
-      <div className="retention-note"><ShieldCheck size={15} /><span>Prototype privacy behaviour: the uploaded file is processed in memory and is not stored on the API. This result is held in this browser session only and will be cleared on refresh.</span></div>
+      <div className="retention-note"><ShieldCheck size={15} /><span>Extracted text, metadata, source sections, obligations and analysis results are stored in the configured database. The original uploaded binary is not retained in this milestone. You can reopen this analysis from Saved documents.</span></div>
     </section>}
   </div>;
 }

@@ -100,8 +100,9 @@ export default function App() {
     Settings: "Manage regulatory source coverage and workspace configuration.",
   };
 
-  function handleDocumentAnalyzed(result: DocumentAnalysis) {
+  function handleDocumentAnalyzed(result: DocumentAnalysis, fromRepository = false) {
     setLatestAnalysis(result);
+    if (fromRepository || result.persistence?.duplicate) return;
     setPublications((current) => [result.publication, ...current.filter((item) => item.id !== result.publication.id)]);
     setOverview((current) => {
       if (!current) return current;
@@ -150,7 +151,7 @@ export default function App() {
     <main className="main-area">
       <header className="topbar">
         <div className="breadcrumb">Workspace <ChevronRight size={13} /> <strong>{page}</strong></div>
-        <div className="topbar-actions"><span className="environment"><i /> DEMO + SESSION UPLOADS</span>
+        <div className="topbar-actions"><span className="environment"><i /> DEMO + PERSISTED UPLOADS</span>
           <button className="icon-button" aria-label="Notifications"><Bell size={18} /></button>
         </div>
       </header>
