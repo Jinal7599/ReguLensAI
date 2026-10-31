@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, CheckCircle2, ChevronRight, FileText,
   LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw,
-  ShieldCheck, UploadCloud, Clock3,
+  ShieldCheck, UploadCloud, Clock3, type LucideIcon,
 } from "lucide-react";
 import { api, type AuthUser } from "./api";
 import type { ChangeItem, DocumentAnalysis, DocumentRecord } from "./types";
@@ -39,7 +39,7 @@ function formatDate(value?: string | null): string {
 }
 
 function Metric({ label, value, caption, tone, icon: Icon }: {
-  label: string; value: number; caption: string; tone: RiskTone | "blue"; icon: typeof FileText;
+  label: string; value: number; caption: string; tone: RiskTone | "blue"; icon: LucideIcon;
 }) {
   return <article className="simple-metric">
     <div className="simple-metric-top"><span>{label}</span><span className={`simple-metric-icon ${tone}`}><Icon size={17} /></span></div>
