@@ -81,12 +81,25 @@ python -m pytest
 
 ## Render deployment
 
-The root `render.yaml` describes two services:
+This repository uses a Render Blueprint, similar to MailStorm, to provision the frontend and API together.
 
-1. `regulens-ai-api` — Python web service rooted at `backend/`.
-2. `regulens-ai-frontend` — static site rooted at `frontend/`.
+1. Open the Render Dashboard and choose **New → Blueprint**.
+2. Connect the GitHub repository `pancholi-deep/ReguLensAI`.
+3. Select the feature branch containing the React + FastAPI foundation while PR #1 is still open. After merging, use `main`.
+4. Render reads the root `render.yaml` and proposes two services:
+   - `regulens-ai-api` — Python web service rooted at `backend/`.
+   - `regulens-ai-frontend` — static site rooted at `frontend/`.
+5. Complete the initial deploy. Render will assign each service a public `onrender.com` URL.
+6. In the API service's environment settings, set `ALLOWED_ORIGINS` to the exact frontend origin, e.g. `https://regulens-ai-frontend.onrender.com` (no trailing slash).
+7. In the frontend static site's environment settings, set `VITE_API_BASE_URL` to the API's public origin, e.g. `https://regulens-ai-api.onrender.com` (no trailing slash).
+8. Trigger a new frontend deploy after setting `VITE_API_BASE_URL`, because Vite embeds this value at build time. Redeploy the API after changing `ALLOWED_ORIGINS`.
 
-Create a Blueprint deployment in Render using this repository. Set `ALLOWED_ORIGINS` on the API service to the frontend's deployed origin (for example, `https://your-frontend.onrender.com`). Set `VITE_API_BASE_URL` on the frontend service to the API's public URL (for example, `https://your-api.onrender.com`) and trigger a frontend redeploy after changing it. The sample service names in `render.yaml` may need adjustment if already taken.
+Verify the deployment:
+- API health: `https://<api-service>.onrender.com/api/v1/health`
+- API docs: `https://<api-service>.onrender.com/docs`
+- Open the frontend URL and confirm that the dashboard loads API data.
+
+The Blueprint uses Render's Free plan for the initial prototype. Free services may spin down when idle and take time to wake on the next request. Change the plan in Render if always-on availability is needed. The sample service names in `render.yaml` may need adjustment if already taken in your Render workspace.
 
 Do not commit API keys, OAuth secrets, database credentials or other secrets. Add them through Render's environment settings when the corresponding integrations are implemented.
 
