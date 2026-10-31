@@ -1,4 +1,4 @@
-import type { ChangeItem, DocumentAnalysis, Overview, Publication, Source } from "./types";
+import type { ChangeItem, DocumentAnalysis, GeminiDiagnostics, Overview, Publication, Source } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -27,5 +27,6 @@ export const api = {
   publications: () => request<{ items: Publication[]; total: number }>("/publications"),
   changes: () => request<{ items: ChangeItem[]; total: number }>("/changes"),
   sources: () => request<{ items: Source[]; total: number }>("/sources"),
+  geminiDiagnostics: () => request<GeminiDiagnostics>("/diagnostics/gemini"),
   analyzeDocument,
 };
