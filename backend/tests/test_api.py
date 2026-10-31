@@ -155,8 +155,6 @@ def test_explicit_gemini_environment_key_selects_gemini_path(monkeypatch):
 
 
 def test_gemini_diagnostics_does_not_expose_secret(monkeypatch):
-    from app.core.config import _LOADED_GEMINI_KEY_SOURCE
-
     monkeypatch.setenv("GEMINI_API_KEY", "never-return-this-secret")
     response = client.get("/api/v1/diagnostics/gemini")
     assert response.status_code == 200
@@ -176,3 +174,11 @@ def test_dotenv_value_replaces_blank_process_environment_variable(tmp_path, monk
     monkeypatch.setenv("GEMINI_API_KEY", "")
     load_local_environment(project_root=project_root, backend_root=backend_root)
     assert __import__("os").environ["GEMINI_API_KEY"] == "test-from-file"
+
+
+def test_gemini_diagnostics_reports_missing_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    response = client.get("/api/v1/diagnostics/gemini")
+    assert response.status_code == 200
+    assert response.json()["configured"] is False
+    assert response.json()["key_source"] == "missing"
