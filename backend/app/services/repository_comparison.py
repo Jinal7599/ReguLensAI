@@ -201,6 +201,8 @@ def _score_internal_policy_document(
         "matching_method": "internal_policy_content_overlap",
         "evidence": {
             "internal_policy": True,
+            "explicit_reference": False,
+            "reference_evidence": [],
             "shared_terms": sorted(shared_tokens)[:20],
             "shared_term_count": len(shared_tokens),
             "content_overlap": round(content_overlap, 4),
