@@ -23,6 +23,12 @@ export interface ExtractedObligation {
   source_excerpt: string;
   evidence_verified: boolean;
 }
+export interface GeminiDiagnostics {
+  configured: boolean;
+  model: string;
+  key_source: string;
+  local_env_files_found: string[];
+}
 export interface DocumentAnalysis {
   publication: Publication;
   document: {
