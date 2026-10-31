@@ -41,7 +41,7 @@ cp .env.example .env
 # Edit .env and set GEMINI_API_KEY=your_actual_key
 ```
 
-The backend automatically loads the repository-root `.env` file. Explicit shell / Render environment variables take precedence. Restart FastAPI after changing the key.
+The backend automatically loads the repository-root `.env` file (or `backend/.env`). A non-empty shell / Render variable takes precedence; an empty shell variable is filled from `.env`. Restart FastAPI after changing the key. Check the exact backend process used by the frontend at `http://127.0.0.1:8000/api/v1/diagnostics/gemini`; the response reports whether the key is configured without returning the key.
 
 From the repository root:
 
@@ -82,7 +82,7 @@ python -m pytest
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/health` | Health check |\n| GET | `/api/v1/diagnostics/gemini` | Safe Gemini key/model configuration status (never returns the key) |
 | GET | `/api/v1/overview` | Dashboard metrics and coverage |
 | GET | `/api/v1/publications` | Publication search and filters |
 | GET | `/api/v1/changes` | Synthetic change assessments |
