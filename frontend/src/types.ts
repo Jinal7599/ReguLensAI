@@ -13,3 +13,33 @@ export interface Overview {
   recent_publications: Publication[];
 }
 export interface Source { country: string; authority: string; region: string; status: string; }
+
+export interface ExtractedObligation {
+  requirement: string;
+  classification: string;
+  applies_to: string[];
+  deadline: string;
+  source_reference: string;
+  source_excerpt: string;
+  evidence_verified: boolean;
+}
+export interface DocumentAnalysis {
+  publication: Publication;
+  document: {
+    filename: string;
+    extension: string;
+    size_bytes: number;
+    text_characters: number;
+    source_sections: number;
+    sha256: string;
+  };
+  extraction: {
+    method: string;
+    model: string | null;
+    summary: string;
+    metadata: Record<string, string>;
+    obligations: ExtractedObligation[];
+    obligation_count: number;
+    note: string;
+  };
+}
