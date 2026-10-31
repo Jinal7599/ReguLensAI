@@ -231,7 +231,7 @@ export default function App() {
         {workspaceError && <div className="error-banner"><AlertTriangle size={16} /><span>{workspaceError}</span></div>}
         {page === "Dashboard" && <>
           <div className="simple-page-heading">
-            <div><div className="eyebrow">OVERVIEW</div><h1>Compliance dashboard</h1><p>Your documents and actions at a glance.</p></div>
+            <div><div className="eyebrow">OVERVIEW</div><h1>Compliance dashboard</h1><p>Your internal policies and review actions at a glance.</p></div>
             <button className="button primary" onClick={() => setPage("Internal Policy Repository")}><UploadCloud size={15} /> Upload policy</button>
           </div>
 
@@ -280,7 +280,7 @@ export default function App() {
                 <div className="simple-empty">
                   <ShieldCheck size={22} />
                   <strong>{activeFilter === "compliant" ? "No items marked compliant" : severityFilter ? `No ${severityFilter} severity findings` : "Nothing to review"}</strong>
-                  <span>{activeFilter === "actions" ? (severityFilter ? "Try another severity filter or clear the selected filter." : "Upload a circular to generate recommended actions.") : "Your results will appear here when available."}</span>
+                  <span>{activeFilter === "actions" ? (severityFilter ? "Try another severity filter or clear the selected filter." : "Add a regulatory source or upload a circular to generate review actions.") : "Your results will appear here when available."}</span>
                 </div>
               ) : <div className="simple-action-list">{visibleFindings.slice().sort((a, b) => {
                   const rank = (item: ChangeItem) => item.compliance_status === "compliant" ? 3 : getRiskTone(item) === "red" ? 0 : 1;
