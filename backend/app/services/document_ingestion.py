@@ -196,7 +196,7 @@ def _fallback_metadata(filename: str, text: str) -> dict[str, str]:
 def _fallback_obligations(segments: list[TextSegment]) -> list[dict[str, Any]]:
     obligations: list[dict[str, Any]] = []
     trigger = re.compile(
-        r"(?i)\b(shall|must|required to|is required to|are required to|must not|shall not|may not|should)\b"
+        r"(?i)\b(must not|shall not|may not|shall|must|required to|is required to|are required to|should)\b"
     )
     deadline_pattern = re.compile(
         r"(?i)\b(within\s+\d+\s+(?:calendar\s+|business\s+)?days?|"
