@@ -6,6 +6,12 @@ export interface ChangeItem {
   id: string; publication: string; country: string; classification: string;
   priority: string; previous: string; updated: string; impact: string;
   actions: string[]; source: string;
+  severity?: "high" | "medium" | "low";
+  confidence?: number | null;
+  compliance_status?: "open" | "in_progress" | "compliant";
+  evidence_verified?: boolean;
+  needs_review?: boolean;
+  is_demo?: boolean;
 }
 export interface Overview {
   total_publications: number; new_or_unreviewed: number; awaiting_review: number;
