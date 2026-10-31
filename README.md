@@ -22,7 +22,7 @@ The browser communicates with the backend over HTTP. The backend owns applicatio
 - FastAPI health, overview, publication, change and source endpoints
 - Backend API tests and local Vite proxy
 
-**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring, Gemini integration, OAuth and persistent storage are not enabled yet.
+**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring, OAuth and persistent storage are not enabled yet.
 
 ## Requirements
 
