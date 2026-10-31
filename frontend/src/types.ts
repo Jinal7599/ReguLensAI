@@ -35,6 +35,7 @@ export interface DocumentAnalysis {
   };
   extraction: {
     method: string;
+    gemini_status: "not_configured" | "used" | "failed";
     model: string | null;
     summary: string;
     metadata: Record<string, string>;
