@@ -29,7 +29,30 @@ export interface GeminiDiagnostics {
   key_source: string;
   local_env_files_found: string[];
 }
+export interface DocumentPersistence {
+  persisted: boolean;
+  duplicate: boolean;
+  publication_id: string;
+  document_version_id: string;
+  sha256: string;
+  stored_sections?: number;
+  stored_obligations?: number;
+  original_file_stored?: boolean;
+}
+
+export interface DocumentRecord {
+  document_version_id: string;
+  publication_id: string;
+  filename: string;
+  sha256: string;
+  extraction_status: string;
+  extraction_method: string;
+  created_at: string | null;
+  publication: Publication;
+}
+
 export interface DocumentAnalysis {
+  persistence?: DocumentPersistence;
   publication: Publication;
   document: {
     filename: string;

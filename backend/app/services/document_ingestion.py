@@ -411,4 +411,12 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
             "obligation_count": len(obligations),
             "note": extraction_note,
         },
+        # Internal persistence context is removed by the API before returning JSON.
+        "_persistence": {
+            "extracted_text": full_text,
+            "source_sections": [
+                {"reference": segment.reference, "text": segment.text}
+                for segment in segments
+            ],
+        },
     }

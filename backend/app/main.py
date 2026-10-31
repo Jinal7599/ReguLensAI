@@ -7,7 +7,7 @@ from app.core.config import allowed_origins
 app = FastAPI(
     title="ReguLens AI API",
     description="Regulatory intelligence and change impact assessment API.",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 app.add_middleware(

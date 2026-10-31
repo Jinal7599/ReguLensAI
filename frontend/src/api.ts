@@ -1,4 +1,4 @@
-import type { ChangeItem, DocumentAnalysis, GeminiDiagnostics, Overview, Publication, Source } from "./types";
+import type { ChangeItem, DocumentAnalysis, DocumentRecord, GeminiDiagnostics, Overview, Publication, Source } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -6,6 +6,14 @@ async function request<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}/api/v1${path}`);
   if (!response.ok) throw new Error(`API request failed (${response.status}) for ${path}`);
   return response.json() as Promise<T>;
+}
+
+async function listDocuments(): Promise<{ items: DocumentRecord[]; total: number; persistence_available: boolean; access_enabled?: boolean; message?: string }> {
+  return request<{ items: DocumentRecord[]; total: number; persistence_available: boolean; access_enabled?: boolean; message?: string }>("/documents");
+}
+
+async function documentDetail(documentVersionId: string): Promise<DocumentAnalysis> {
+  return request<DocumentAnalysis>(`/documents/${encodeURIComponent(documentVersionId)}`);
 }
 
 async function analyzeDocument(file: File): Promise<DocumentAnalysis> {
@@ -28,5 +36,7 @@ export const api = {
   changes: () => request<{ items: ChangeItem[]; total: number }>("/changes"),
   sources: () => request<{ items: Source[]; total: number }>("/sources"),
   geminiDiagnostics: () => request<GeminiDiagnostics>("/diagnostics/gemini"),
+  listDocuments,
+  documentDetail,
   analyzeDocument,
 };
