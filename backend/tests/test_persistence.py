@@ -126,19 +126,17 @@ def test_persisted_publication_appears_in_publication_feed_after_reload():
     assert overview["total_publications"] >= 6
 
 
-def test_private_document_apis_are_disabled_in_production(monkeypatch):
+def test_private_document_apis_require_authentication_in_production(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     response = client.post(
         "/api/v1/documents",
         files={"file": ("private.txt", b"An entity shall retain audit evidence.", "text/plain")},
     )
-    assert response.status_code == 503
-    assert "authentication" in response.json()["detail"].lower()
+    assert response.status_code == 401
+    assert "sign in with google" in response.json()["detail"].lower()
 
     listing = client.get("/api/v1/documents")
-    assert listing.status_code == 200
-    assert listing.json()["access_enabled"] is False
-    assert listing.json()["persistence_available"] is False
+    assert listing.status_code == 401
 
 
 

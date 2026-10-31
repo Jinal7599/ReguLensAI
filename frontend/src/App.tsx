@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, Bell, Check, ChevronDown,
+  Activity, ArrowRight, Bell, Check,
   ChevronRight, CircleAlert, Clock3, FileCheck2, FileSearch, FileText,
   FileUp, Filter, Globe2, LayoutDashboard, RefreshCw, Search, Settings,
-  ShieldCheck, Sparkles, type LucideIcon,
+  ShieldCheck, Sparkles, LogOut, type LucideIcon,
 } from "lucide-react";
 import { api } from "./api";
 import type { ChangeItem, DocumentAnalysis, Overview, Publication, Source } from "./types";
 import DocumentIntake from "./DocumentIntake";
+import GoogleSignInButton from "./GoogleSignInButton";
+import type { AuthUser } from "./api";
 
 type Page = "Overview" | "Document Intake" | "Regulatory Feed" | "Change Analysis" | "Settings";
 const navItems: { label: Page; icon: LucideIcon }[] = [
@@ -62,6 +64,9 @@ export default function App() {
   const [selectedChange, setSelectedChange] = useState("CHG-001");
   const [completed, setCompleted] = useState<string[]>([]);
   const [latestAnalysis, setLatestAnalysis] = useState<DocumentAnalysis | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState("");
 
   async function loadData(isRefresh = false) {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -83,6 +88,37 @@ export default function App() {
   }
 
   useEffect(() => { void loadData(); }, []);
+
+  useEffect(() => {
+    api.currentUser()
+      .then((session) => setCurrentUser(session.user))
+      .catch(() => setCurrentUser(null))
+      .finally(() => setAuthReady(true));
+  }, []);
+
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    setAuthError("");
+    try {
+      const session = await api.googleLogin(credential);
+      setCurrentUser(session.user);
+      await loadData(true);
+      setPage("Document Intake");
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Google sign-in failed.");
+    }
+  }, []);
+
+  async function handleSignOut() {
+    try {
+      await api.logout();
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Unable to sign out.");
+    } finally {
+      setCurrentUser(null);
+      setLatestAnalysis(null);
+      await loadData(true);
+    }
+  }
 
   const filteredPublications = useMemo(() => publications.filter((item) => {
     const searchable = [item.id, item.title, item.authority, item.country, item.area].join(" ").toLowerCase();
@@ -143,8 +179,10 @@ export default function App() {
           <div className="coverage-dots"><i /><i /><i /><i /></div>
           <small>India · UAE · KSA · Africa</small>
         </div>
-        <div className="user-row"><div className="avatar">RL</div>
-          <div><strong>Compliance workspace</strong><small>Demo environment</small></div><ChevronDown size={15} />
+        <div className="user-row">
+          <div className="avatar">{currentUser?.picture ? <img src={currentUser.picture} alt="" /> : (currentUser?.name?.slice(0, 2).toUpperCase() ?? "RL")}</div>
+          <div><strong>{currentUser?.name ?? "Compliance workspace"}</strong><small>{currentUser?.email ?? "Public demo environment"}</small></div>
+          {currentUser && <button className="icon-button user-signout" title="Sign out" aria-label="Sign out" onClick={() => void handleSignOut()}><LogOut size={15} /></button>}
         </div>
       </div>
     </aside>
@@ -153,6 +191,9 @@ export default function App() {
       <header className="topbar">
         <div className="breadcrumb">Workspace <ChevronRight size={13} /> <strong>{page}</strong></div>
         <div className="topbar-actions"><span className="environment"><i /> DEMO + PERSISTED UPLOADS</span>
+          {currentUser
+            ? <span className="signed-in-label">Signed in as {currentUser.email}</span>
+            : <button className="button secondary compact" onClick={() => setPage("Document Intake")}>Sign in to upload</button>}
           <button className="icon-button" aria-label="Notifications"><Bell size={18} /></button>
         </div>
       </header>
@@ -201,7 +242,19 @@ export default function App() {
               Regulatory interpretations and suggested actions should be verified by qualified compliance reviewers.</span></div>
           </>}
 
-          {page === "Document Intake" && <DocumentIntake analysis={latestAnalysis} onAnalyzed={handleDocumentAnalyzed} />}
+          {page === "Document Intake" && (currentUser
+            ? <DocumentIntake analysis={latestAnalysis} onAnalyzed={handleDocumentAnalyzed} />
+            : <section className="panel auth-gate">
+                <div className="auth-gate-icon"><ShieldCheck size={28} /></div>
+                <div className="eyebrow">PRIVATE DOCUMENT WORKSPACE</div>
+                <h2>Sign in to manage your documents</h2>
+                <p>Your uploads, extracted obligations and historical comparisons are private to your Google account. Sign in to continue.</p>
+                {authError && <div className="auth-error-banner" role="alert">{authError}</div>}
+                {authReady
+                  ? <GoogleSignInButton onCredential={handleGoogleCredential} />
+                  : <span className="muted">Checking your session…</span>}
+                <small>Each account has an isolated document repository. Other users cannot access your uploads.</small>
+              </section>)}
 
           {page === "Regulatory Feed" && <section className="panel feed-panel">
             <div className="filter-row">
@@ -265,7 +318,7 @@ export default function App() {
               <button className="button secondary" disabled>Coming in next iteration</button></div>
           </section>}
         </>}
-        <footer className="footer"><span>© 2026 ReguLens AI</span><span><i /> Demo workspace · Synthetic samples + session uploads</span></footer>
+        <footer className="footer"><span>© 2026 ReguLens AI</span><span><i /> Public demo data · Private uploads require sign-in</span></footer>
       </div>
     </main>
   </div>;

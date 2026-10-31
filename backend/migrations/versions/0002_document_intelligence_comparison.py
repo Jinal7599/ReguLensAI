@@ -1,13 +1,13 @@
 """Persist structured clauses, regulatory references and historical comparisons.
 
-Revision ID: 0002_document_intelligence_comparison
+Revision ID: 0002_doc_intel_comparison
 Revises: 0001_initial_persistence
 Create Date: 2026-10-31
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0002_document_intelligence_comparison"
+revision = "0002_doc_intel_comparison"
 down_revision = "0001_initial_persistence"
 branch_labels = None
 depends_on = None

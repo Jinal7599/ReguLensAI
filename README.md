@@ -26,10 +26,12 @@ The browser communicates with the backend over HTTP. The backend owns applicatio
 - Rule-based comparison fallback when Gemini is unavailable; findings remain flagged for human review
 - PostgreSQL persistence for authorities, instruments, publications, document versions, extracted sections, clauses, obligations, references, relationships, comparisons, findings and analysis jobs
 - SHA-256 duplicate detection; identical uploads reuse the existing document version
-- Persisted extracted text and analysis results can be listed and reopened after a browser refresh in local development
-- Alembic initial schema migration and API tests for persistence
+- Google Identity Services sign-in with server-side Google ID-token verification and secure, HTTP-only API session cookies
+- Per-user document ownership, duplicate detection and repository-wide comparisons isolated to the signed-in user's documents
+- Protected document upload, saved-document listing, document details and comparison APIs; public demo feed remains available without sign-in
+- Alembic migrations for persistence, document intelligence and user ownership; authentication and authorization regression tests
 
-**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring, OAuth and original-file object storage are not enabled yet.
+**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring and original-file object storage are not enabled yet.
 
 ## Requirements
 
@@ -109,12 +111,15 @@ The repository is now consolidated on `main`. Use that branch as the deployment 
    - `DATABASE_URL`: the database's **Internal Database URL** when using Render Postgres in the same region.
    - `APP_ENV=production`.
    - `ALLOWED_ORIGINS`: the exact frontend origin, e.g. `https://regulens-ai-frontend.onrender.com` (no trailing slash).
-5. In the frontend static site, set `VITE_API_BASE_URL` to the API origin, e.g. `https://regulens-ai-api.onrender.com`. Redeploy the frontend after changing it because Vite embeds this value at build time.
-6. The API start command runs `alembic upgrade head` when `DATABASE_URL` is configured, then starts FastAPI.
+5. In the API service, set `GOOGLE_CLIENT_ID` to the OAuth 2.0 Web client ID from Google Cloud Console. Set `SESSION_SECRET` to a cryptographically random secret of at least 32 characters (for example, generate one with `python -c "import secrets; print(secrets.token_urlsafe(48))"`). Do not commit either value.
+6. In the frontend static site, set `VITE_API_BASE_URL` to the API origin, e.g. `https://regulens-ai-api.onrender.com`, and `VITE_GOOGLE_CLIENT_ID` to the same Google OAuth Web client ID. Redeploy the frontend after changing these values because Vite embeds them at build time.
+7. In Google Cloud Console, configure the OAuth consent screen and add the exact frontend origin (for example, `https://regulens-ai-frontend.onrender.com`) under **Authorized JavaScript origins**. Add local development origins such as `http://localhost:5173` only when needed. This app uses Google Identity Services ID-token credentials; it does not require a Google client secret.
+8. The API start command runs `alembic upgrade head` when `DATABASE_URL` is configured, then starts FastAPI. Migration `0003_user_ownership_auth` creates the users table and adds nullable ownership to document versions. Existing pre-authentication records remain unowned and are intentionally not exposed to new accounts.
+9. Keep `APP_ENV=production`. FastAPI verifies the Google ID token, creates an application session in a Secure, HttpOnly cookie, and requires that session for document APIs. Document listing, duplicate detection and historical comparison are scoped to the authenticated user's ID. Public demo data remains readable without sign-in.
 
 The Blueprint intentionally does not create a database automatically, so you choose the database provider and pricing. Render's Free Postgres currently expires 30 days after creation and is limited to 1 GB; use it only for disposable testing, not durable project data. See [Render's Free instance limitations](https://render.com/docs/free).
 
-**Production upload limitation:** `APP_ENV=production` keeps private document upload/list/detail APIs disabled until authentication and access controls are implemented. The public dashboard and health endpoints can deploy, but the Render deployment will not support uploading or reopening private documents yet. Use local development for the full document comparison workflow until authentication is added. Keep Gemini disabled on the public upload API until authentication, rate limiting and abuse protections are enabled. Never put the Gemini key in frontend environment variables or commit it to GitHub.
+**Security notes:** The Google client ID is public configuration and is used by the browser and API for audience validation. `SESSION_SECRET` is private and must exist only on the API service. Sessions expire after 12 hours. Keep HTTPS enabled so production session cookies remain Secure. Never put the Gemini key or session secret in frontend environment variables or commit them to GitHub. Rate limiting and production abuse controls should be added before opening unrestricted public sign-ups.
 
 Verify:
 - API health: `https://<api-service>.onrender.com/api/v1/health`

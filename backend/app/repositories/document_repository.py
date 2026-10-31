@@ -28,8 +28,15 @@ def parse_regulatory_date(value: Any) -> date | None:
     return None
 
 
-def find_document_by_hash(session: Session, sha256: str) -> DocumentVersion | None:
-    return session.scalar(select(DocumentVersion).where(DocumentVersion.sha256 == sha256))
+def find_document_by_hash(
+    session: Session, sha256: str, owner_user_id: str | None = None
+) -> DocumentVersion | None:
+    query = select(DocumentVersion).where(DocumentVersion.sha256 == sha256)
+    if owner_user_id is None:
+        query = query.where(DocumentVersion.owner_user_id.is_(None))
+    else:
+        query = query.where(DocumentVersion.owner_user_id == owner_user_id)
+    return session.scalar(query)
 
 
 def _get_or_create_authority(session: Session, name: str, jurisdiction: str) -> RegulatoryAuthority | None:
@@ -56,13 +63,14 @@ def persist_analysis(
     extracted_text: str,
     source_sections: list[dict[str, str]],
     mime_type: str | None,
+    owner_user_id: str | None = None,
 ) -> dict[str, Any]:
     publication_data = analysis["publication"]
     document_data = analysis["document"]
     extraction = analysis["extraction"]
     sha256 = str(document_data["sha256"])
 
-    existing = find_document_by_hash(session, sha256)
+    existing = find_document_by_hash(session, sha256, owner_user_id)
     if existing:
         return duplicate_persistence_result(existing)
 
@@ -91,6 +99,7 @@ def persist_analysis(
     stored_result.pop("_persistence", None)
     version = DocumentVersion(
         id=document_version_id,
+        owner_user_id=owner_user_id,
         publication_id=publication.id,
         filename=str(document_data.get("filename") or "uploaded-document")[:500],
         extension=str(document_data.get("extension") or "")[:20],
@@ -170,13 +179,18 @@ def duplicate_persistence_result(version: DocumentVersion) -> dict[str, Any]:
     }
 
 
-def list_documents(session: Session, *, q: str = "", jurisdiction: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+def list_documents(
+    session: Session, *, owner_user_id: str | None = None,
+    q: str = "", jurisdiction: str = "", limit: int = 50, offset: int = 0
+) -> dict[str, Any]:
     query = (
         select(DocumentVersion, Publication, RegulatoryAuthority)
         .join(Publication, Publication.id == DocumentVersion.publication_id)
         .outerjoin(RegulatoryAuthority, RegulatoryAuthority.id == Publication.authority_id)
     )
     count_query = select(func.count(DocumentVersion.id)).join(Publication, Publication.id == DocumentVersion.publication_id)
+    query = query.where(DocumentVersion.owner_user_id == owner_user_id)
+    count_query = count_query.where(DocumentVersion.owner_user_id == owner_user_id)
     if q.strip():
         pattern = f"%{q.strip()}%"
         filters = (Publication.title.ilike(pattern) | DocumentVersion.filename.ilike(pattern) | Publication.reference_number.ilike(pattern))
@@ -218,8 +232,15 @@ def publication_to_dict(publication: Publication, authority_name: str | None = N
     }
 
 
-def get_document_detail(session: Session, document_version_id: str) -> dict[str, Any] | None:
-    version = session.get(DocumentVersion, document_version_id)
+def get_document_detail(
+    session: Session, document_version_id: str, owner_user_id: str | None = None
+) -> dict[str, Any] | None:
+    version = session.scalar(
+        select(DocumentVersion).where(
+            DocumentVersion.id == document_version_id,
+            DocumentVersion.owner_user_id == owner_user_id,
+        )
+    )
     if not version:
         return None
     publication = session.get(Publication, version.publication_id)
