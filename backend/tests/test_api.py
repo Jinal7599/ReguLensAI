@@ -91,3 +91,64 @@ def test_prohibition_language_is_classified_correctly(monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["extraction"]["obligations"][0]["classification"] == "Prohibition"
+
+
+def test_local_env_file_is_loaded_without_overriding_process_environment(tmp_path, monkeypatch):
+    from app.core.config import load_local_environment
+
+    project_root = tmp_path / "project"
+    backend_root = project_root / "backend"
+    backend_root.mkdir(parents=True)
+    (project_root / ".env").write_text(
+        "REGULENS_TEST_GEMINI_KEY=from-dotenv\\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("REGULENS_TEST_GEMINI_KEY", raising=False)
+    load_local_environment(project_root=project_root, backend_root=backend_root)
+    assert __import__("os").environ["REGULENS_TEST_GEMINI_KEY"] == "from-dotenv"
+
+
+def test_explicit_gemini_environment_key_selects_gemini_path(monkeypatch):
+    import app.services.document_ingestion as ingestion
+
+    monkeypatch.setenv("GEMINI_API_KEY", "unit-test-key")
+    monkeypatch.setattr(
+        ingestion,
+        "_run_gemini",
+        lambda segments, filename: {
+            "model": "test-model",
+            "payload": {
+                "document_metadata": {
+                    "title": "Synthetic AI Circular",
+                    "authority": "Test Regulator",
+                    "jurisdiction": "India",
+                    "publication_date": "Not identified",
+                    "effective_date": "Not identified",
+                    "reference_number": "Not identified",
+                    "document_type": "Circular",
+                    "business_area": "AI governance",
+                },
+                "summary": "Test Gemini summary.",
+                "obligations": [{
+                    "requirement": "A regulated entity shall maintain a model inventory.",
+                    "classification": "Mandatory requirement",
+                    "applies_to": ["Banking"],
+                    "deadline": "Not identified",
+                    "source_reference": "TXT line 2",
+                    "source_excerpt": "A regulated entity shall maintain a model inventory.",
+                }],
+            },
+        },
+    )
+    response = client.post(
+        "/api/v1/documents/analyze",
+        files={"file": (
+            "gemini-test.txt",
+            "Synthetic AI Circular\\nA regulated entity shall maintain a model inventory.",
+            "text/plain",
+        )},
+    )
+    assert response.status_code == 200
+    assert response.json()["extraction"]["method"] == "Gemini structured extraction"
+    assert response.json()["extraction"]["gemini_status"] == "used"
+    assert response.json()["extraction"]["model"] == "test-model"
