@@ -100,7 +100,7 @@ def test_local_env_file_is_loaded_without_overriding_process_environment(tmp_pat
     backend_root = project_root / "backend"
     backend_root.mkdir(parents=True)
     (project_root / ".env").write_text(
-        "REGULENS_TEST_GEMINI_KEY=from-dotenv\\n",
+        "REGULENS_TEST_GEMINI_KEY=from-dotenv\n",
         encoding="utf-8",
     )
     monkeypatch.delenv("REGULENS_TEST_GEMINI_KEY", raising=False)
@@ -144,7 +144,7 @@ def test_explicit_gemini_environment_key_selects_gemini_path(monkeypatch):
         "/api/v1/documents/analyze",
         files={"file": (
             "gemini-test.txt",
-            "Synthetic AI Circular\\nA regulated entity shall maintain a model inventory.",
+            "Synthetic AI Circular\nA regulated entity shall maintain a model inventory.",
             "text/plain",
         )},
     )
