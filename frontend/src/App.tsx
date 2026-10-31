@@ -263,7 +263,7 @@ export default function App() {
               <button className="button secondary" disabled>Coming in next iteration</button></div>
           </section>}
         </>}
-        <footer className="footer"><span>© 2026 ReguLens AI</span><span><i /> Demo workspace · Synthetic data only</span></footer>
+        <footer className="footer"><span>© 2026 ReguLens AI</span><span><i /> Demo workspace · Synthetic samples + session uploads</span></footer>
       </div>
     </main>
   </div>;
