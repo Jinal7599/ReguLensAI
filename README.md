@@ -1,50 +1,103 @@
 # ReguLens AI
 
-AI-powered Regulatory Change Intelligence & Impact Assessment.
+ReguLens AI is a regulatory intelligence and change impact assessment prototype. It is designed to help compliance teams discover publications, understand obligations, compare regulatory clauses and assess potential business impact.
 
-ReguLens AI is a hackathon prototype intended to help compliance teams discover regulatory publications, understand obligations, compare historical requirements and assess potential business impact.
+## Architecture
 
-## Iteration 1: UI foundation
+The application is split into two independently deployable services:
 
-This iteration provides a lightweight Streamlit application with:
-- Overview dashboard and illustrative metrics
-- Searchable regulatory feed with region and status filters
-- Clause-level change analysis screen
-- Regulatory source settings placeholder
-- Render deployment blueprint
+- **Frontend:** React + TypeScript + Vite in `frontend/`
+- **Backend:** FastAPI in `backend/`
+- **API contract:** JSON REST endpoints under `/api/v1`
+- **Deployment:** Render Blueprint with a static frontend and Python API service
 
-**Important:** All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.
+The browser communicates with the backend over HTTP. The backend owns application data and business logic; the frontend handles presentation and user interactions.
+
+## Current iteration
+
+- Overview dashboard with summary metrics and regional coverage
+- Searchable regulatory publication feed with region and status filters
+- Change analysis with previous/updated clause panels and review actions
+- Settings view showing the four target regional source groups
+- FastAPI health, overview, publication, change and source endpoints
+- Backend API tests and local Vite proxy
+
+**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring, Gemini integration, OAuth and persistent storage are not enabled yet.
+
+## Requirements
+
+- Python 3.11+
+- Node.js 20.19+ (or compatible newer LTS release)
+- npm
 
 ## Run locally
 
-Requires Python 3.11 or newer.
+### 1. Start the API
+
+From the repository root:
 
 ```bash
+cd backend
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
-streamlit run app/main.py
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open the local URL printed by Streamlit (normally http://localhost:8501).
+API health: http://127.0.0.1:8000/api/v1/health  
+Interactive API docs: http://127.0.0.1:8000/docs
 
-## Configuration
+### 2. Start the frontend
 
-Copy `.env.example` to `.env` for future integrations. Do not commit API keys, OAuth secrets, database credentials or Streamlit secrets.
+In a second terminal, from the repository root:
 
-No external API credentials are required for the Iteration 1 UI.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## Deployment on Render
+Open http://localhost:5173. Vite proxies local `/api` requests to FastAPI on port 8000.
 
-The repository includes `render.yaml` for a basic Streamlit web service. Connect the GitHub repository in Render and create a Blueprint deployment. Persistent database and object storage configuration will be added in a later iteration.
+### 3. Run backend tests
 
-## Project structure
+From the repository root:
 
-- `app/main.py`: Streamlit entry point and navigation
-- `app/pages/`: UI screens
-- `app/data/sample_data.py`: synthetic demo records
-- `render.yaml`: Render service configuration
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+## API endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/overview` | Dashboard metrics and coverage |
+| GET | `/api/v1/publications` | Publication search and filters |
+| GET | `/api/v1/changes` | Synthetic change assessments |
+| GET | `/api/v1/sources` | Regional source configuration |
+
+## Render deployment
+
+The root `render.yaml` describes two services:
+
+1. `regulens-ai-api` — Python web service rooted at `backend/`.
+2. `regulens-ai-frontend` — static site rooted at `frontend/`.
+
+Create a Blueprint deployment in Render using this repository. Set `ALLOWED_ORIGINS` on the API service to the frontend's deployed origin (for example, `https://your-frontend.onrender.com`). Set `VITE_API_BASE_URL` on the frontend service to the API's public URL (for example, `https://your-api.onrender.com`) and trigger a frontend redeploy after changing it. The sample service names in `render.yaml` may need adjustment if already taken.
+
+Do not commit API keys, OAuth secrets, database credentials or other secrets. Add them through Render's environment settings when the corresponding integrations are implemented.
+
+## Development principles
+
+- Keep API routes versioned under `/api/v1`.
+- Keep regulatory connectors, document processing and AI orchestration in backend modules.
+- Keep the React frontend focused on presentation and user interactions.
+- Keep deterministic comparison and evidence extraction separate from LLM-generated interpretation.
+- Add PostgreSQL and object storage when milestones define the required records and retention behaviour.
 
 ## Disclaimer
 
-This prototype is not certified for regulatory compliance. AI-generated interpretations and recommendations require qualified human review.
+This prototype is not certified for regulatory compliance. Regulatory interpretations and AI-generated recommendations require qualified human review.

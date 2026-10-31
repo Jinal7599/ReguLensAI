@@ -1,11 +1,24 @@
 services:
   - type: web
-    name: regulens-ai
+    name: regulens-ai-api
     runtime: python
+    rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app/main.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
-    healthCheckPath: /_stcore/health
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: regulens-ai-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false

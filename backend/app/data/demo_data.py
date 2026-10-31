@@ -1,4 +1,4 @@
-"""Clearly synthetic demo records for the ReguLensAI UI foundation."""
+"""Synthetic demo data, not official regulatory publications."""
 
 PUBLICATIONS = [
     {"id": "REG-IND-2026-014", "title": "Illustrative AI Governance Circular", "authority": "Reserve Bank of India", "country": "India", "area": "AI governance", "published": "2026-10-20", "effective": "2027-04-01", "status": "Awaiting review", "kind": "Amendment"},
@@ -10,11 +10,8 @@ PUBLICATIONS = [
 
 CHANGES = [
     {
-        "id": "CHG-001",
-        "publication": "Illustrative AI Governance Circular",
-        "country": "India",
-        "classification": "New obligation",
-        "priority": "High",
+        "id": "CHG-001", "publication": "Illustrative AI Governance Circular",
+        "country": "India", "classification": "New obligation", "priority": "High",
         "previous": "No equivalent clause identified in the selected historical sample.",
         "updated": "Regulated entities should establish documented governance and human oversight for AI-assisted credit decisions.",
         "impact": "Potential impact on model governance, credit decision workflows, validation evidence and human review controls.",
@@ -22,15 +19,19 @@ CHANGES = [
         "source": "Demo clause 4.2 (synthetic sample; not an official RBI publication)",
     },
     {
-        "id": "CHG-002",
-        "publication": "Illustrative Operational Resilience Guidance",
-        "country": "UAE",
-        "classification": "Modified obligation",
-        "priority": "Medium",
+        "id": "CHG-002", "publication": "Illustrative Operational Resilience Guidance",
+        "country": "UAE", "classification": "Modified obligation", "priority": "Medium",
         "previous": "Business continuity testing is described at a high level.",
         "updated": "Testing should include documented recovery objectives and evidence of scenario coverage.",
         "impact": "Potential updates to resilience testing procedures, evidence retention and service-owner attestations.",
         "actions": ["Map critical services to recovery objectives", "Update scenario test plan", "Record evidence and remediation owners"],
         "source": "Demo clause 6.1 (synthetic sample; not an official CBUAE publication)",
     },
+]
+
+SOURCES = [
+    {"country": "India", "authority": "Reserve Bank of India", "region": "South Asia", "status": "Configured"},
+    {"country": "UAE", "authority": "Central Bank of the UAE", "region": "Middle East", "status": "Configured"},
+    {"country": "Saudi Arabia", "authority": "Saudi Central Bank (SAMA)", "region": "Middle East", "status": "Configured"},
+    {"country": "Africa", "authority": "Selected central bank / financial regulator", "region": "Africa", "status": "Needs configuration"},
 ]
