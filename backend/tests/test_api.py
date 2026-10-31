@@ -77,3 +77,17 @@ def test_scanned_or_non_text_pdf_returns_actionable_error():
         files={"file": ("empty-scan.pdf", b"not a valid PDF", "application/pdf")},
     )
     assert response.status_code == 422
+
+
+def test_prohibition_language_is_classified_correctly(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    content = (
+        "Illustrative Banking Circular\n"
+        "A regulated entity must not disclose customer credentials to unauthorized persons.\n"
+    )
+    response = client.post(
+        "/api/v1/documents/analyze",
+        files={"file": ("prohibition.txt", content, "text/plain")},
+    )
+    assert response.status_code == 200
+    assert response.json()["extraction"]["obligations"][0]["classification"] == "Prohibition"
