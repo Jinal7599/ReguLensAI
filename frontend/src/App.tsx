@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, Bell, Check, ChevronDown,
   ChevronRight, CircleAlert, Clock3, FileCheck2, FileSearch, FileText,
-  Filter, Globe2, LayoutDashboard, RefreshCw, Search, Settings,
+  FileUp, Filter, Globe2, LayoutDashboard, RefreshCw, Search, Settings,
   ShieldCheck, Sparkles, type LucideIcon,
 } from "lucide-react";
 import { api } from "./api";
-import type { ChangeItem, Overview, Publication, Source } from "./types";
+import type { ChangeItem, DocumentAnalysis, Overview, Publication, Source } from "./types";
+import DocumentIntake from "./DocumentIntake";
 
-type Page = "Overview" | "Regulatory Feed" | "Change Analysis" | "Settings";
+type Page = "Overview" | "Document Intake" | "Regulatory Feed" | "Change Analysis" | "Settings";
 const navItems: { label: Page; icon: LucideIcon }[] = [
   { label: "Overview", icon: LayoutDashboard },
+  { label: "Document Intake", icon: FileUp },
   { label: "Regulatory Feed", icon: FileSearch },
   { label: "Change Analysis", icon: Activity },
   { label: "Settings", icon: Settings },
@@ -59,6 +61,7 @@ export default function App() {
   const [status, setStatus] = useState("All statuses");
   const [selectedChange, setSelectedChange] = useState("CHG-001");
   const [completed, setCompleted] = useState<string[]>([]);
+  const [latestAnalysis, setLatestAnalysis] = useState<DocumentAnalysis | null>(null);
 
   async function loadData(isRefresh = false) {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -91,10 +94,33 @@ export default function App() {
   const activeChange = changes.find((item) => item.id === selectedChange) ?? changes[0];
   const descriptions: Record<Page, string> = {
     Overview: "A clear view of regulatory developments and review priorities across your regions.",
+    "Document Intake": "Upload a regulatory publication and extract obligations with traceable source evidence.",
     "Regulatory Feed": "Discover, search and review regulatory publications from configured authorities.",
     "Change Analysis": "Understand what changed, why it matters and which actions may be required.",
     Settings: "Manage regulatory source coverage and workspace configuration.",
   };
+
+  function handleDocumentAnalyzed(result: DocumentAnalysis) {
+    setLatestAnalysis(result);
+    setPublications((current) => [result.publication, ...current.filter((item) => item.id !== result.publication.id)]);
+    setOverview((current) => {
+      if (!current) return current;
+      const existing = current.coverage.find((item) => item.country === result.publication.country);
+      const coverage = existing
+        ? current.coverage.map((item) => item.country === result.publication.country
+          ? { ...item, count: item.count + 1 } : item)
+        : [...current.coverage, { country: result.publication.country, count: 1 }];
+      return {
+        ...current,
+        total_publications: current.total_publications + 1,
+        new_or_unreviewed: current.new_or_unreviewed + 1,
+        awaiting_review: current.awaiting_review + 1,
+        regions_represented: coverage.length,
+        coverage,
+        recent_publications: [result.publication, ...current.recent_publications.filter((item) => item.id !== result.publication.id)].slice(0, 5),
+      };
+    });
+  }
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -124,7 +150,7 @@ export default function App() {
     <main className="main-area">
       <header className="topbar">
         <div className="breadcrumb">Workspace <ChevronRight size={13} /> <strong>{page}</strong></div>
-        <div className="topbar-actions"><span className="environment"><i /> SYNTHETIC DATA</span>
+        <div className="topbar-actions"><span className="environment"><i /> DEMO + SESSION UPLOADS</span>
           <button className="icon-button" aria-label="Notifications"><Bell size={18} /></button>
         </div>
       </header>
@@ -172,6 +198,8 @@ export default function App() {
             <div className="notice"><Sparkles size={17} /><span><strong>Built for review, not blind automation.</strong>
               Regulatory interpretations and suggested actions should be verified by qualified compliance reviewers.</span></div>
           </>}
+
+          {page === "Document Intake" && <DocumentIntake analysis={latestAnalysis} onAnalyzed={handleDocumentAnalyzed} />}
 
           {page === "Regulatory Feed" && <section className="panel feed-panel">
             <div className="filter-row">
