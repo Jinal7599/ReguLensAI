@@ -66,7 +66,7 @@ From the repository root:
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest
+python -m pytest
 ```
 
 ## API endpoints
