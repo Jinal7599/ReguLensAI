@@ -152,3 +152,27 @@ def test_explicit_gemini_environment_key_selects_gemini_path(monkeypatch):
     assert response.json()["extraction"]["method"] == "Gemini structured extraction"
     assert response.json()["extraction"]["gemini_status"] == "used"
     assert response.json()["extraction"]["model"] == "test-model"
+
+
+def test_gemini_diagnostics_does_not_expose_secret(monkeypatch):
+    from app.core.config import _LOADED_GEMINI_KEY_SOURCE
+
+    monkeypatch.setenv("GEMINI_API_KEY", "never-return-this-secret")
+    response = client.get("/api/v1/diagnostics/gemini")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["configured"] is True
+    assert payload["key_source"] == "process environment"
+    assert "never-return-this-secret" not in response.text
+
+
+def test_dotenv_value_replaces_blank_process_environment_variable(tmp_path, monkeypatch):
+    from app.core.config import load_local_environment
+
+    project_root = tmp_path / "project"
+    backend_root = project_root / "backend"
+    backend_root.mkdir(parents=True)
+    (project_root / ".env").write_text("GEMINI_API_KEY=test-from-file\n", encoding="utf-8")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    load_local_environment(project_root=project_root, backend_root=backend_root)
+    assert __import__("os").environ["GEMINI_API_KEY"] == "test-from-file"
