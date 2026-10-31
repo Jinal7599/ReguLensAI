@@ -291,10 +291,7 @@ def analyze_document(filename: str, content: bytes) -> dict[str, Any]:
     segments = extract_segments(filename, content)
     full_text = "\n".join(segment.text for segment in segments)
     fallback_metadata = _fallback_metadata(filename, full_text)
-    # Load .env from the repository root (or backend/) for local development.
-    # Explicit process variables, including Render settings, take precedence.
-    load_local_environment()
-
+    # Refresh .env discovery before deciding whether Gemini is configured.
     gemini_config = gemini_configuration()
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     model_name_configured = str(gemini_config["model"])
