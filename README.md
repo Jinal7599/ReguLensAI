@@ -100,19 +100,28 @@ The database stores extracted text, metadata, source sections, obligations and t
 
 ## Render deployment
 
-1. Provision a managed PostgreSQL database in Render (or use another reachable PostgreSQL provider).
-2. Set the API service's DATABASE_URL to the database connection string. Use the internal database URL when the database and API are in the same Render region.
-3. Keep APP_ENV=production. The database schema can be migrated, but document upload/list/detail APIs remain disabled on the public deployment until authentication and access controls are implemented. The API also refuses persistent uploads when DATABASE_URL is missing rather than silently writing to Render's ephemeral filesystem.
-4. Set ALLOWED_ORIGINS to the exact frontend origin, e.g. https://regulens-ai-frontend.onrender.com (no trailing slash).
-5. Set frontend VITE_API_BASE_URL to the API origin, e.g. https://regulens-ai-api.onrender.com, and redeploy the frontend because Vite embeds this value at build time.
-6. The API start command runs alembic upgrade head when DATABASE_URL is configured, then starts FastAPI.
+The repository is now consolidated on `main`. Use that branch as the deployment source.
+
+1. Connect your GitHub account to Render if it is not connected already.
+2. In the Render Dashboard, choose **New → Blueprint**, connect `pancholi-deep/ReguLensAI`, and select the `main` branch. Render reads the root `render.yaml` and creates the FastAPI service (`regulens-ai-api`) and React static site (`regulens-ai-frontend`).
+3. Provision a managed PostgreSQL database in Render (or use another reachable PostgreSQL provider). Keep it in the same Render region as the API when using Render Postgres.
+4. In the API service, set:
+   - `DATABASE_URL`: the database's **Internal Database URL** when using Render Postgres in the same region.
+   - `APP_ENV=production`.
+   - `ALLOWED_ORIGINS`: the exact frontend origin, e.g. `https://regulens-ai-frontend.onrender.com` (no trailing slash).
+5. In the frontend static site, set `VITE_API_BASE_URL` to the API origin, e.g. `https://regulens-ai-api.onrender.com`. Redeploy the frontend after changing it because Vite embeds this value at build time.
+6. The API start command runs `alembic upgrade head` when `DATABASE_URL` is configured, then starts FastAPI.
+
+The Blueprint intentionally does not create a database automatically, so you choose the database provider and pricing. Render's Free Postgres currently expires 30 days after creation and is limited to 1 GB; use it only for disposable testing, not durable project data. See [Render's Free instance limitations](https://render.com/docs/free).
+
+**Production upload limitation:** `APP_ENV=production` keeps private document upload/list/detail APIs disabled until authentication and access controls are implemented. The public dashboard and health endpoints can deploy, but the Render deployment will not support uploading or reopening private documents yet. Use local development for the full document comparison workflow until authentication is added. Keep Gemini disabled on the public upload API until authentication, rate limiting and abuse protections are enabled. Never put the Gemini key in frontend environment variables or commit it to GitHub.
 
 Verify:
-- API health: https://<api-service>.onrender.com/api/v1/health
-- Storage diagnostics: https://<api-service>.onrender.com/api/v1/diagnostics/storage
-- API docs: https://<api-service>.onrender.com/docs
+- API health: `https://<api-service>.onrender.com/api/v1/health`
+- Storage diagnostics: `https://<api-service>.onrender.com/api/v1/diagnostics/storage`
+- API docs: `https://<api-service>.onrender.com/docs`
 
-Keep Gemini disabled on a public upload API until authentication / access controls, rate limiting and abuse protections are enabled. Never put the key in frontend environment variables or commit it to GitHub.
+Render can automatically redeploy services when changes are merged or pushed to their linked branch. With the Blueprint linked to `main`, future merges to `main` become the deployment source.
 
 ## Development principles
 
