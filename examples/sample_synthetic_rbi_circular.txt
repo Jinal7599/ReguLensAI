@@ -1,0 +1,31 @@
+Illustrative AI Governance Circular
+Reserve Bank of India
+Synthetic example — not an official RBI publication and not suitable for compliance decisions.
+
+Circular No: DEMO/RBI/AI/2026/01
+Published on 20/10/2026
+Effective from 01/04/2027
+
+1. Purpose and scope
+
+This illustrative circular describes example governance expectations for artificial intelligence and machine learning systems used by regulated entities in lending and credit decision processes.
+
+2. AI system inventory
+
+Regulated entities shall maintain a documented inventory of artificial intelligence and machine learning systems used in customer-facing or credit decision workflows. The inventory must identify the business owner, intended use, model risk classification and accountable review function.
+
+3. Human oversight
+
+A regulated entity shall ensure that an appropriately trained employee can review and override a material adverse credit decision generated or materially influenced by an automated system.
+
+4. Prohibited practices
+
+Regulated entities must not use customer personal data for an unrelated model-training purpose without an appropriate legal basis and required customer safeguards.
+
+5. Periodic review
+
+Regulated entities should review the AI system inventory at least once every twelve months and retain evidence of the review.
+
+6. Implementation date
+
+The illustrative requirements in this synthetic example are effective from 01/04/2027.
