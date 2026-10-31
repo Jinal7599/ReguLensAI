@@ -257,7 +257,6 @@ export default function DocumentIntake({ analysis, onAnalyzed }: DocumentIntakeP
                   </div>
                 </div>
               ))}
-                ))}
               </details>}
               {comparison.findings.length === 0 && <p className="muted">No material findings for this document.</p>}
             </article>
