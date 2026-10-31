@@ -18,7 +18,7 @@ from app.services.auth import (
     set_session_cookie, verify_google_credential,
 )
 
-router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 OAUTH_NONCE_COOKIE = "regulens_oauth_nonce"
 OAUTH_NONCE_TTL_SECONDS = 300
 

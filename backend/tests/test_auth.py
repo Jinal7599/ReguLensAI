@@ -135,7 +135,7 @@ def test_another_users_document_is_not_found(monkeypatch):
         )
         assert first_user.id != other_user.id
         token = create_session_token(first_user.id)
-    client.cookies.set("regulens_session", token, domain="testserver", path="/")
+    client.cookies.set("regulens_session", token)
     response = client.get(f"/api/v1/documents/{other_doc_id}")
     assert response.status_code == 404
     client.cookies.clear()
