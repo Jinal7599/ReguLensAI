@@ -19,13 +19,17 @@ The browser communicates with the backend over HTTP. The backend owns applicatio
 - Searchable regulatory publication feed with region and status filters
 - Change analysis with previous/updated clause panels and review actions (currently synthetic examples)
 - Settings view showing four target regional source groups
-- Manual PDF, DOCX and TXT upload with Gemini structured extraction and rule-based fallback
-- PostgreSQL-ready persistence for authorities, instruments, publications, document versions, extracted sections, obligations, document relationships and analysis jobs
+- Manual PDF, DOCX and TXT upload with chunked Gemini document intelligence and rule-based fallback
+- Structured clause extraction, obligation typing, affected entities / departments, deadlines and explicit references to older instruments
+- Repository-wide historical matching for each newly uploaded document, using explicit reference matches plus regulator, jurisdiction, title, business-area and content signals
+- Clause alignment and evidence-backed comparison findings using the six required change categories
+- Rule-based comparison fallback when Gemini is unavailable; findings remain flagged for human review
+- PostgreSQL persistence for authorities, instruments, publications, document versions, extracted sections, clauses, obligations, references, relationships, comparisons, findings and analysis jobs
 - SHA-256 duplicate detection; identical uploads reuse the existing document version
 - Persisted extracted text and analysis results can be listed and reopened after a browser refresh in local development
 - Alembic initial schema migration and API tests for persistence
 
-**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring, automatic historical matching, clause comparison, OAuth and original-file object storage are not enabled yet.
+**All bundled publications and clause examples are synthetic demo data. They are not official regulatory publications and must not be used to make compliance decisions.** Live source monitoring, OAuth and original-file object storage are not enabled yet.
 
 ## Requirements
 
@@ -75,15 +79,22 @@ From the repository root:
     pip install -r requirements-dev.txt
     python -m pytest -q
 
-Tests use isolated SQLite databases and do not call the Gemini API. CI also runs the Alembic migration against SQLite.
+Tests use isolated SQLite databases and mock Gemini requests. CI applies all Alembic migrations against SQLite and runs the backend tests plus frontend build.
 
 ## Persistence behaviour
 
 - POST /api/v1/documents uploads, analyzes and persists a PDF, DOCX or TXT document. The existing POST /api/v1/documents/analyze route remains as a compatibility alias.
 - GET /api/v1/documents lists persisted document versions with search, jurisdiction filter and pagination.
-- GET /api/v1/documents/{document_version_id} returns the stored extraction result and source-section references.
+- GET /api/v1/documents/{document_version_id} returns the stored extraction result, source-section references and historical comparison summary.
+- GET /api/v1/documents/{document_version_id}/comparisons returns repository matches and findings.
+- GET /api/v1/comparisons/{comparison_id} returns an individual historical comparison.
+- GET /api/v1/changes includes persisted findings alongside synthetic demo examples.
 - GET /api/v1/publications includes persisted uploads alongside synthetic demo records in local development.
 - SHA-256 hashes prevent the same file content from being analyzed and stored repeatedly.
+- Every new upload is scored against all previously saved document versions (the synthetic dashboard examples are not treated as source documents). Explicit amendment/repeal references take precedence; regulator, jurisdiction, title, business-area and content signals identify additional relevant candidates. The highest-scoring 20 relevant documents are compared to bound processing cost.
+- Saved Milestone A documents that do not have clause records are reconstructed from their persisted source sections and obligations on first comparison. These baselines are labelled as reconstructed rule-based clauses, not as newly Gemini-extracted content.
+- Aligned clauses are compared using deterministic text similarity and optional Gemini interpretation. Findings retain previous/updated wording, source references, classification, possible impact and review status.
+- An unmatched old clause is not automatically labelled withdrawn. Repeal/supersession findings require explicit relationship language in the new document.
 
 The database stores extracted text, metadata, source sections, obligations and the structured extraction result. **The original uploaded binary is not retained in this milestone**; object storage and download/retention policies are a later step. Do not upload confidential customer or production documents.
 
